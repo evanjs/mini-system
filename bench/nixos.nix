@@ -69,7 +69,7 @@ let
           #TEST_KMOD = no;
         };
         extraConfig = ''
-          INITRAMFS_SOURCE "${self.initrd}/initrd";
+          INITRAMFS_SOURCE ${self.initrd}
         '';
       };
     }));
