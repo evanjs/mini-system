@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+cat busybox.config | sed -r 's;CONFIG_PREFIX\=.*$;;' > mid.config
+sed -r 's;CONFIG_CROSS_COMPILER_PREFIX=.*;;' -i mid.config
+cat mid.config | sed -r 's;\b=([yn\"]); \1;;;' |  sed -re 's;^#\s(.*)\s(is not set);\1 n;' > fixed.config 
+
+sed -r 's;.*CONFIG_IFUPDOWN_UDHCPC_CMD_OPTIONS.*";CONFIG_IFUPDOWN_UDHCPC_CMD_OPTIONS "-Rn";;' -i fixed.config
