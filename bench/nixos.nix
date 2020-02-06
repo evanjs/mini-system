@@ -1,6 +1,18 @@
 { pkgs, lib, config, ... }:
 let
+  rjg-overlay = (import /home/evanjs/src/rjg/nixos/overlay/overlay.nix );
   sources = import ./nix/sources.nix;
+  pkgs = (import sources.nixpkgs { overlays = [ rjg-overlay ]; });
+  mylinuxPackages_4_19 = pkgs.linuxPackages_4_19.extend (lib.const (ksuper: {
+    kernel = ksuper.kernel.override {
+      configfile = ./kernel.config;
+      structuredExtraConfig = with import (pkgs.path + "/lib/kernel.nix") {
+        inherit lib;
+        inherit (ksuper) version;
+      }; {
+      };
+    };
+  }));
 in rec {
   imports = [
     (sources.nixpkgs + "/nixos/modules/profiles/minimal.nix")
@@ -14,12 +26,8 @@ in rec {
   };
 
   boot = {
-    loader = {
-      grub = {
-        enable = false;
-      };
-    };
-    kernelPackages = pkgs.mylinuxPackages_4_19;
+    loader = { grub = { enable = false; }; };
+    kernelPackages = mylinuxPackages_4_19;
 
     initrd = {
       network = {
@@ -36,9 +44,15 @@ in rec {
 
   environment.systemPackages = with pkgs;
   [
-    (callPackage "/home/evanjs/src/rjg/copilot/realtime" { deploy = false; })
+    (callPackage "/home/evanjs/src/rjg/copilot/realtime" {
+      deploy = false;
+      withSensorTester = true;
+      softwareVersion = "5.0.0";
+      hardwareVersion = "10.0.0";
+      protobuf = pkgs.protobuf3_9;
+    })
   ];
   fonts.fontconfig.enable = false;
   security.polkit.enable = false;
-  #services.udisks2.enable = lib.mkForce false;
+  services.udisks2.enable = lib.mkForce false;
 }

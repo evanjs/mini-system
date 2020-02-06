@@ -10,7 +10,6 @@
 
 int main(int argc, char **argv) {
   int status;
-  //status = mknod("/dev/ttyAMA0", S_IFCHR | 0666, makedev(204,64));
   status = mknod("/dev/kmsg", S_IFCHR | 0666, makedev(1,11));
   if (status) return 1;
   int fd = open("/dev/kmsg", O_RDWR);
