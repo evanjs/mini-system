@@ -16,11 +16,17 @@ let
     script = pkgs.writeTextFile {
       name = "init";
       text = ''
-        #!/bin/sh
-        ln -sf /dev/null /dev/tty2
-        ln -sf /dev/null /dev/tty3
-        ln -sf /dev/null /dev/tty4
-        ${busybox}/bin/ash
+      #!${self.busybox}/bin/ash
+        export PATH=/bin
+        mknod /dev/kmsg c 1 11
+        exec > /dev/kmsg 2>&1
+        mount -t proc proc proc
+        mount -t sysfs sys sys
+        mount -t devtmpfs dev dev
+        mount -t debugfs debugfs /sys/kernel/debug
+        exec > /dev/ttyS0 2>&1 < /dev/ttyS0
+        /bin/ash > /dev/ttyS0 < /dev/ttyS0
+        echo ash failed
       '';
       executable = true;
     };
