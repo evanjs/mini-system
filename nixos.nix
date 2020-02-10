@@ -42,16 +42,6 @@ in rec {
     };
   };
 
-  environment.systemPackages = with pkgs;
-  [
-    (callPackage "/home/evanjs/src/rjg/copilot/realtime" {
-      deploy = false;
-      withSensorTester = true;
-      softwareVersion = "5.0.0";
-      hardwareVersion = "10.0.0";
-      protobuf = pkgs.protobuf3_9;
-    })
-  ];
   fonts.fontconfig.enable = false;
   security.polkit.enable = false;
   services.udisks2.enable = lib.mkForce false;

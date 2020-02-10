@@ -9,6 +9,13 @@ let
   lib = pkgs.lib;
   x86_64 = pkgs;
   overlay = self: super: {
+      realtime = (pkgs.callPackage "/home/evanjs/src/rjg/copilot/realtime" {
+        deploy = false;
+        withSensorTester = true;
+        withEthercat = false;
+        softwareVersion = "5.0.0";
+        hardwareVersion = "10.0.0";
+      });
     uart-manager = self.stdenv.mkDerivation {
       name = "uart-manager";
       src = ./uart-manager;
@@ -22,7 +29,7 @@ let
       };
       initrd-tools = self.buildEnv {
         name = "initrd-tools";
-      paths = [ busybox ];
+        paths = [ self.realtime self.busybox ];
       };
       initrd = self.makeInitrd {
         contents = [
