@@ -48,13 +48,13 @@ let
     };
     test-script = pkgs.writeShellScript "test-script" ''
       #!${self.stdenv.shell}
-      ${self.qemu}/bin/qemu-system-x86_64 -kernel ${self.linux}/bzImage -initrd ${self.initrd}/initrd -nographic -append 'console=ttyS0'
-    '';
-    debug-script = pkgs.writeShellScript "debug-script" ''
+          ${self.qemu}/bin/qemu-system-x86_64 -kernel ${self.linux}/bzImage -initrd ${self.initrd}/initrd -nographic -m 4096 -append 'console=ttyS0'
+      '';
+      debug-script = pkgs.writeShellScript "debug-script" ''
       #!${self.stdenv.shell}
-      ${self.qemu}/bin/qemu-system-x86_64 -kernel ${self.linux}/bzImage -initrd ${self.initrd}/initrd -nographic -append 'console=ttyS0 -stdio serial -s -S'
-    '';
-  };
+          ${self.qemu}/bin/qemu-system-x86_64 -kernel ${self.linux}/bzImage -initrd ${self.initrd}/initrd -nographic -m 4096 -append 'console=ttyS0 -stdio serial -s -S'
+      '';
+    };
 
 in pkgs.lib.fix (self: {
   x86_64 = { inherit (x86_64) debug-script test-script; };
