@@ -13,40 +13,42 @@ let
       name = "uart-manager";
       src = ./uart-manager;
     };
-    script = pkgs.writeTextFile {
-      name = "init";
-      text = ''
-      #!${self.busybox}/bin/ash
-        export PATH=/bin
-        mknod /dev/kmsg c 1 11
-        exec > /dev/kmsg 2>&1
-        mount -t proc proc proc
-        mount -t sysfs sys sys
-        mount -t devtmpfs dev dev
-        mount -t debugfs debugfs /sys/kernel/debug
-        exec > /dev/ttyS0 2>&1 < /dev/ttyS0
-        /bin/ash > /dev/ttyS0 < /dev/ttyS0
-        echo ash failed
-      '';
-      executable = true;
-    };
-    initrd-tools = self.buildEnv {
-      name = "initrd-tools";
+      script = pkgs.writeTextFile {
+        name = "init";
+        text = ''
+        #!${self.busybox}/bin/busybox
+        '';
+        executable = true;
+      };
+      initrd-tools = self.buildEnv {
+        name = "initrd-tools";
       paths = [ busybox ];
-    };
-    initrd = self.makeInitrd {
-      contents = [
+      };
+      initrd = self.makeInitrd {
+        contents = [
         {
           object = "${self.initrd-tools}/bin";
           symlink = "/bin";
         }
         {
-          object = self.script;
-          symlink = "/init";
-        }
-      ];
-    };
-    test-script = pkgs.writeShellScript "test-script" ''
+            object = self.script;
+            symlink = "/init";
+          }
+          {
+            object = ./rootfs/etc;
+            symlink = "/etc";
+          }
+          {
+            object = ./rootfs/lib/firmware;
+            symlink = "/lib/firmware";
+          }
+          {
+            object = "${self.linux}/lib/modules";
+            symlink = "/lib/modules";
+          }
+        ];
+      };
+      test-script = pkgs.writeShellScript "test-script" ''
       #!${self.stdenv.shell}
           ${self.qemu}/bin/qemu-system-x86_64 -kernel ${self.linux}/bzImage -initrd ${self.initrd}/initrd -nographic -m 4096 -append 'console=ttyS0'
       '';
