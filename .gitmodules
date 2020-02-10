@@ -1,0 +1,4 @@
+[submodule "realtime"]
+	path = realtime
+	url = ssh://git@misc.rjginc.com:7999/~jason.schalk/realtime.git
+	branch = musl_things
