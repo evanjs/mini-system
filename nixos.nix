@@ -3,13 +3,16 @@ let
   rjg-overlay = (import /home/evanjs/src/rjg/nixos/overlay/overlay.nix );
   sources = import ./nix/sources.nix;
   pkgs = (import sources.nixpkgs { overlays = [ rjg-overlay ]; });
-  mylinuxPackages_4_19 = pkgs.linuxPackages_4_19.extend (lib.const (ksuper: {
+  mylinuxPackages = pkgs.linuxPackages_4_19.extend (lib.const (ksuper: {
     kernel = ksuper.kernel.override {
-      configfile = ./kernel.config;
+      #configfile = ./kernel.config;
       structuredExtraConfig = with import (pkgs.path + "/lib/kernel.nix") {
         inherit lib;
         inherit (ksuper) version;
       }; {
+        #extraConfig = ''
+          #INITRAMFS_SOURCE ${initrd}
+        #'';
       };
     };
   }));
@@ -27,9 +30,10 @@ in rec {
 
   boot = {
     loader = { grub = { enable = false; }; };
-    kernelPackages = mylinuxPackages_4_19;
-
+    kernelPackages = mylinuxPackages;
+    kernelModules = [ "rtlwifi_new" ];
     initrd = {
+      #availableKernelModules = [ "rtlwifi_new" ];
       network = {
         enable = true;
         ssh = {
@@ -41,6 +45,9 @@ in rec {
       };
     };
   };
+
+
+  hardware.enableRedistributableFirmware = true;
 
   fonts.fontconfig.enable = false;
   security.polkit.enable = false;

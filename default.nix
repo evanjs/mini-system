@@ -7,10 +7,11 @@ let
   stdenv = pkgs.pkgsMusl.stdenv;
   nixos = (import (sources.nixpkgs + "/nixos") { configuration = ./nixos.nix; });
   pkgs = (import sources.nixpkgs { overlays = [ overlay ]; });
+  inherit (nixos.config.system.build) kernel;
   lib = pkgs.lib;
   x86_64 = pkgs;
   overlay = self: super: {
-    realtime = (pkgs.callPackage "/home/evanjs/src/rjg/copilot/realtime" {
+    realtime = (pkgs.callPackage ./realtime {
       deploy = false;
       withSensorTester = true;
       withEthercat = false;
@@ -31,59 +32,86 @@ let
     };
     initrd-tools = self.buildEnv {
       name = "initrd-tools";
-      paths = [ self.realtime self.busybox ];
+      paths = [ self.realtime self.busybox pkgs.usbutils ];
     };
     initrd = self.makeInitrd {
       contents = [
         {
           object = "${self.initrd-tools}/bin";
           symlink = "/bin";
-          }
-          {
+        }
+        {
           object = self.script;
           symlink = "/init";
-          }
-          {
+        }
+        {
           object = ./rootfs/etc;
           symlink = "/etc";
-          }
-          {
+        }
+        {
           object = ./rootfs/lib/firmware;
           symlink = "/lib/firmware";
-          }
-          {
+        }
+        {
           object = "${self.linux}/lib/modules";
           symlink = "/lib/modules";
-          }
-          ];
-          };
-          test-script = pkgs.writeShellScript "test-script" ''
+        }      ];
+      };
+    scripts =
+      let
+        consoleConfig = "console=ttyS0";
+        #networkConfig = "-vnc 127.0.0.1:0 -net nic";
+        ehciConfig = "-device qemu-xhci,id=xhci";
+        #adapter2Config = "-usb -device,id=tplink,bus=ehci.0,vendorid=0x2357,productid=0x010c";
+        adapter2Config = "-usb -device usb-net";
+        usbAdapterConfig = "${ehciConfig} ${adapter2Config}";
+        grubDebugConfig = "-stdio serial -s -S";
+        memoryConfig = "-m 4096";
+        baseConfig = "${self.qemu}/bin/qemu-system-x86_64 -kernel ${self.linux}/bzImage -initrd ${self.initrd}/initrd";
+      in
+      {
+        test-script-small-adapter = pkgs.writeShellScript "test-script-small" ''
       #!${self.stdenv.shell}
-      ${self.qemu}/bin/qemu-system-x86_64 -kernel ${self.linux}/bzImage -initrd ${self.initrd}/initrd -nographic -m 4096 -append 'console=ttyS0'
-      '';
+          ${baseConfig} -nographic ${memoryConfig} -append '${consoleConfig}'
+        '';
+        test-script-big-adapter = pkgs.writeShellScript "test-script-big" ''
+      #!${self.stdenv.shell}
+          ${baseConfig} -nographic ${memoryConfig} ${usbAdapterConfig} -append '${consoleConfig}'
+        '';
         debug-script = pkgs.writeShellScript "debug-script" ''
       #!${self.stdenv.shell}
-      ${self.qemu}/bin/qemu-system-x86_64 -kernel ${self.linux}/bzImage -initrd ${self.initrd}/initrd -nographic -m 4096 -append 'console=ttyS0 -stdio serial -s -S'
-      '';
-        };
-
-        in pkgs.lib.fix (self: {
-        x86_64 = { inherit (x86_64) debug-script test-script; };
-
-        kernelShell = nixos.config.boot.kernelPackages.kernel.overrideDerivation
-        (drv: {
-        nativeBuildInputs = drv.nativeBuildInputs
-        ++ (with x86_64; [ ncurses pkgconfig ]);
-        shellHook = ''
-        addToSearchPath PKG_CONFIG_PATH ${x86_64.ncurses.dev}/lib/pkgconfig
-        echo to configure: 'make $makeFlags menuconfig'
-        echo to build: 'time make $makeFlags zImage -j8'
+          ${baseConfig} -nographic ${memoryConfig} -append '${consoleConfig} ${grubDebugConfig}'
         '';
-      });
-      nixos = {
-        inherit nixos;
-        inherit (nixos) system;
-        inherit (nixos.config.system.build) initialRamdisk;
-        inherit (nixos.config.system.build.kernel) dev;
       };
-    })
+    };
+    rootModules = [
+      "rtlwifi"
+    ];
+    modulesClosure = pkgs.makeModulesClosure {
+      inherit kernel;
+      inherit rootModules;
+      firmware = kernel;
+    };
+
+in pkgs.lib.fix (self: {
+  x86_64 = { inherit (x86_64) scripts; };
+
+  kernelShell = nixos.config.boot.kernelPackages.kernel.overrideDerivation
+  (drv: {
+    nativeBuildInputs = drv.nativeBuildInputs
+    ++ (with x86_64; [ ncurses pkgconfig ]);
+    shellHook = ''
+      addToSearchPath PKG_CONFIG_PATH ${x86_64.ncurses.dev}/lib/pkgconfig
+      echo to configure: 'make $makeFlags menuconfig'
+      echo to build: 'time make $makeFlags zImage -j8'
+    '';
+  });
+  inherit (pkgs) initrd;
+  nixos = {
+    inherit nixos;
+    inherit modulesClosure;
+    inherit (kernel) dev;
+    inherit (nixos) system;
+    inherit (nixos.config.system.build) initialRamdisk;
+  };
+})
