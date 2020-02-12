@@ -1,44 +1,41 @@
 { pkgs, lib, config, ... }:
+with lib;
 let
   rjg-overlay = (import /home/evanjs/src/rjg/nixos/overlay/overlay.nix );
-  sources = import ./nix/sources.nix;
-  pkgs = (import sources.nixpkgs { overlays = [ rjg-overlay ]; });
-  #pkgs = (import /home/evanjs/src/nixpkgs { overlays = [ rjg-overlay]; });
+  #sources = import ./nix/sources.nix;
+  #pkgs = (import sources.nixpkgs { overlays = [ rjg-overlay ]; });
+  pkgs = (import /home/evanjs/src/nixpkgs { overlays = [ rjg-overlay]; });
   mylinuxPackages = pkgs.linuxPackages_4_19.extend (lib.const (ksuper: {
     kernel = ksuper.kernel.override {
-      #configfile = ./kernel.config;
       structuredExtraConfig = with import (pkgs.path + "/lib/kernel.nix") {
         inherit lib;
         inherit (ksuper) version;
       }; {
-        #extraConfig = ''
-          #INITRAMFS_SOURCE ${initrd}
-        #'';
+        USB_EHCI_PCI = mkForce yes;
+        USB_XHCI_PCI = mkForce yes;
+        #PREEMPT = mkForce no;
+        #PREEMPT_VOLUNTARY= mkForce no;
+        #RFKILL = yes;
       };
+      #extraConfig = readFile ./kernel-fixed.config;
+      configfile = ./kernel.config;
     };
   }));
 in rec {
   imports = [
-    (sources.nixpkgs + "/nixos/modules/profiles/minimal.nix")
-    #<nixpkgs/nixos/modules/profiles/minimal.nix>
+    #(sources.nixpkgs + "/nixos/modules/profiles/minimal.nix")
+    <nixpkgs/nixos/modules/profiles/minimal.nix>
   ];
   fileSystems = {
     "/" = {
-      device = "/dev/sda1";
-      fsType = "ext4";
-      noCheck = true;
+      device = "nodev";
     };
   };
 
   boot = {
     loader = { grub = { enable = false; }; };
     kernelPackages = mylinuxPackages ;
-    kernelModules = [ "rtl8188eu" ];
-    #kernelModules = [ "xhci_pci" "ehci_pci" "ahci" "usbhid" "usb_storage" "sd_mod" ];
     initrd = {
-      #kernelModules = [ "rtasfas" ];
-      #availableKernelModules = [ "xhci_pci" "ehci_pci" "ahci" "usbhid" "usb_storage" "sd_mod" ];
-      #availableKernelModules = [ "rtl8188eu" ];
       network = {
         enable = true;
         ssh = {

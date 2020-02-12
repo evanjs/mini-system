@@ -1,15 +1,26 @@
 { kernelOverride ? null, ... }:
 let
-  sources = import ./nix/sources.nix;
+  #sources = import ./nix/sources.nix;
   busybox = pkgs.pkgsStatic.busybox.override {
     extraConfig = lib.readFile ./fixed.config;
   };
   stdenv = pkgs.pkgsMusl.stdenv;
-  nixos = (import (sources.nixpkgs + "/nixos") { configuration = ./nixos.nix; });
-  #nixos = (import <nixpkgs/nixos> { configuration = ./nixos.nix; });
-  pkgs = (import sources.nixpkgs { overlays = [ overlay ]; });
-  #pkgs = (import /home/evanjs/src/nixpkgs { overlays = [ overlay ]; });
-  inherit (nixos.config.system.build) kernel;
+  #nixos = (import (sources.nixpkgs + "/nixos") { configuration = ./nixos.nix; });
+  nixos = (import <nixpkgs/nixos> { configuration = ./nixos.nix; });
+
+  #pkgs = (import sources.nixpkgs { overlays = [ overlay ]; });
+  pkgs = (import /home/evanjs/src/nixpkgs { overlays = [ overlay ]; });
+  kernelVersion = kernel.modDirVersion;
+
+  inherit (nixos.config.boot.kernelPackages) kernel;
+  inherit (nixos.config.boot) kernelPackages;
+
+  modulesClosure = pkgs.makeModulesClosure {
+    inherit kernel;
+    inherit rootModules;
+    firmware = kernel;
+    allowMissing = true;
+  };
 
   lib = pkgs.lib;
   x86_64 = pkgs;
@@ -35,7 +46,7 @@ let
     };
     initrd-tools = self.buildEnv {
       name = "initrd-tools";
-      paths = [ self.realtime self.busybox pkgs.usbutils ];
+      paths = [ self.realtime self.busybox pkgs.usbutils pkgs.hostapd ];
     };
     initrd = self.makeInitrd {
       contents = [
@@ -51,58 +62,85 @@ let
           object = ./rootfs/etc;
           symlink = "/etc";
         }
+        #{
+          #object = "${kernelPackages.rtl8188eu}/lib/modules/${kernelVersion}/kernel/drivers/net";
+          #symlink = "/lib/modules/${kernelVersion}/kernel/drivers/net";
+        #}
+        #{
+          #object = "${modulesClosure}/lib/modules/${kernelVersion}/kernel/net/rfkill";
+          #symlink = "/lib/modules/${kernelVersion}/kernel/net/rfkill";
+        #}
+        #{
+          #object = "${modulesClosure}/lib/modules/${kernelVersion}/kernel/net/wireless";
+          #symlink = "/lib/modules/${kernelVersion}/kernel/net/wireless";
+        #}
+        #{
+          #object = "${modulesClosure}/lib/modules/${kernelVersion}/kernel/drivers/hid";
+          #symlink = "/lib/modules/${kernelVersion}/kernel/drivers/hid";
+        #}
+        #{
+          #object = "${modulesClosure}/lib/modules/${kernelVersion}/kernel/drivers/scsi";
+          #symlink = "/lib/modules/${kernelVersion}/kernel/drivers/scsi";
+        #}
         {
-          object = ./rootfs/lib/firmware;
-          symlink = "/lib/firmware";
+          object = "${modulesClosure}/lib/modules/${kernelVersion}/modules*";
+          symlink = "/lib/modules/${kernelVersion}/";
         }
-        {
-          object = "${self.linux}/lib/modules";
-          symlink = "/lib/modules";
-        }
+         
+          #object = "${pkgs.rtlwifi_new-firmware}/lib/firmware";
+          #symlink = "/lib/firmware/rtlwifi";
+        #}
+        #{
+          #object= "${pkgs.wireless-regdb}/lib/firmware/regulatory.db";
+          #symlink = "/lib/firmware/regulatory.db";
+        #}
+        #{
+          #object= "${pkgs.wireless-regdb}/lib/firmware/regulatory.db.p7s";
+          #symlink = "/lib/firmware/regulatory.db.p7s";
+        #}
       ];
-      };
-      scripts =
-        let
-          consoleConfig = "console=ttyS0";
+    };
+    scripts =
+      let
+        consoleConfig = "console=ttyS0";
         #busConfig = ''
-          #-device ich9-usb-ehci1,id=usb,bus=pci.0,addr=0x5.0x7 \
+          #-device ich9-usb-ehci1,id=usb,bus=pci.0,addr=0x5.0x7 \o
           #-device ich9-usb-uhci3,masterbus=usb.0,firstport=4,bus=pci.0,addr=0x5.0x2 \
         #'';
         #usbAdapterConfig = "${busConfig} -device usb-host,hostbus=2,hostaddr=2,id=hostdev0,bus=usb.0,port=4";
+        usbAdapterConfig = "-device qemu-xhci,id=xhci -device usb-host,bus=xhci.0,vendorid=0x2357,productid=0x010c";
         grubDebugConfig = "-stdio serial -s -S";
         memoryConfig = "-m 4096";
-        baseConfig = "${self.qemu}/bin/qemu-system-x86_64 -kernel ${self.linux}/bzImage -initrd ${self.initrd}/initrd";
-        in
-        {
-          test-script-small-adapter = pkgs.writeShellScript "test-script-small" ''
+        baseConfig = "${self.qemu}/bin/qemu-system-x86_64 -kernel ${kernel}/bzImage -initrd ${self.initrd}/initrd ${usbAdapterConfig}";
+        #baseConfig = "${self.qemu}/bin/qemu-system-x86_64 -kernel ${kernel}/bzImage -initrd ${nixos.config.system.build.initialRamdisk.outPath}/initrd ${usbAdapterConfig}";
+      in
+      {
+        test-script-small-adapter = pkgs.writeShellScript "test-script-small" ''
       #!${self.stdenv.shell}
             ${baseConfig} -nographic ${memoryConfig} -append '${consoleConfig}'
-          '';
-          test-script-big-adapter = pkgs.writeShellScript "test-script-big" ''
+        '';
+        test-script-big-adapter = pkgs.writeShellScript "test-script-big" ''
       #!${self.stdenv.shell}
             ${baseConfig} -nographic ${memoryConfig} -append '${consoleConfig}'
-          '';
-          debug-script = pkgs.writeShellScript "debug-script" ''
+        '';
+        debug-script = pkgs.writeShellScript "debug-script" ''
       #!${self.stdenv.shell}
             ${baseConfig} -nographic ${memoryConfig} -append '${consoleConfig} ${grubDebugConfig}'
-          '';
-        };
+        '';
       };
-      rootModules = [
-      #"rtl8188ee"
-      "rtlwifi"
-      "xhci_pci"
-      "ehci_pci"
-      "ahci"
-      "usbhid"
-      "usb_storage"
-      "sd_mod"
-    ];
-    modulesClosure = pkgs.makeModulesClosure {
-      inherit kernel;
-      inherit rootModules;
-      firmware = kernel;
     };
+    rootModules = [
+      #"rtl8188ee"
+      "rtl8188eu"
+      #"rtl8192"
+      "rtlwifi"
+      #"sd_mod"
+      #"usbhid"
+      #"xhci_hcd"
+      #"ehci_hcd"
+      #"xhci_pci"
+      #"ehci_pci"
+    ];
 
 in pkgs.lib.fix (self: {
   x86_64 = { inherit (x86_64) scripts; };
@@ -119,8 +157,16 @@ in pkgs.lib.fix (self: {
   });
   inherit (pkgs) initrd;
   nixos = {
-    inherit nixos;
-    #inherit modulesClosure;
+    #inherit (pkgs) initrd;
+
+
+    inherit modulesClosure;
+    #config = import nixos.config { initrd = { prepend = self.initrd.contents; }; };
+    inherit (nixos) config;
+
+    #initrd = self.nixos.config.boot.initrd.prepend initrd;
+    #config.boot.initrd.prepend = initrd;
+
     inherit (kernel) dev;
     inherit (nixos) system;
     inherit (nixos.config.system.build) initialRamdisk;
