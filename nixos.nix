@@ -3,6 +3,7 @@ let
   rjg-overlay = (import /home/evanjs/src/rjg/nixos/overlay/overlay.nix );
   sources = import ./nix/sources.nix;
   pkgs = (import sources.nixpkgs { overlays = [ rjg-overlay ]; });
+  #pkgs = (import /home/evanjs/src/nixpkgs { overlays = [ rjg-overlay]; });
   mylinuxPackages = pkgs.linuxPackages_4_19.extend (lib.const (ksuper: {
     kernel = ksuper.kernel.override {
       #configfile = ./kernel.config;
@@ -19,6 +20,7 @@ let
 in rec {
   imports = [
     (sources.nixpkgs + "/nixos/modules/profiles/minimal.nix")
+    #<nixpkgs/nixos/modules/profiles/minimal.nix>
   ];
   fileSystems = {
     "/" = {
@@ -30,10 +32,13 @@ in rec {
 
   boot = {
     loader = { grub = { enable = false; }; };
-    kernelPackages = mylinuxPackages;
-    kernelModules = [ "rtlwifi_new" ];
+    kernelPackages = mylinuxPackages ;
+    kernelModules = [ "rtl8188eu" ];
+    #kernelModules = [ "xhci_pci" "ehci_pci" "ahci" "usbhid" "usb_storage" "sd_mod" ];
     initrd = {
-      #availableKernelModules = [ "rtlwifi_new" ];
+      #kernelModules = [ "rtasfas" ];
+      #availableKernelModules = [ "xhci_pci" "ehci_pci" "ahci" "usbhid" "usb_storage" "sd_mod" ];
+      #availableKernelModules = [ "rtl8188eu" ];
       network = {
         enable = true;
         ssh = {

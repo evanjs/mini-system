@@ -6,8 +6,11 @@ let
   };
   stdenv = pkgs.pkgsMusl.stdenv;
   nixos = (import (sources.nixpkgs + "/nixos") { configuration = ./nixos.nix; });
+  #nixos = (import <nixpkgs/nixos> { configuration = ./nixos.nix; });
   pkgs = (import sources.nixpkgs { overlays = [ overlay ]; });
+  #pkgs = (import /home/evanjs/src/nixpkgs { overlays = [ overlay ]; });
   inherit (nixos.config.system.build) kernel;
+
   lib = pkgs.lib;
   x86_64 = pkgs;
   overlay = self: super: {
@@ -55,37 +58,45 @@ let
         {
           object = "${self.linux}/lib/modules";
           symlink = "/lib/modules";
-        }      ];
+        }
+      ];
       };
-    scripts =
-      let
-        consoleConfig = "console=ttyS0";
-        #networkConfig = "-vnc 127.0.0.1:0 -net nic";
-        ehciConfig = "-device qemu-xhci,id=xhci";
-        #adapter2Config = "-usb -device,id=tplink,bus=ehci.0,vendorid=0x2357,productid=0x010c";
-        adapter2Config = "-usb -device usb-net";
-        usbAdapterConfig = "${ehciConfig} ${adapter2Config}";
+      scripts =
+        let
+          consoleConfig = "console=ttyS0";
+        #busConfig = ''
+          #-device ich9-usb-ehci1,id=usb,bus=pci.0,addr=0x5.0x7 \
+          #-device ich9-usb-uhci3,masterbus=usb.0,firstport=4,bus=pci.0,addr=0x5.0x2 \
+        #'';
+        #usbAdapterConfig = "${busConfig} -device usb-host,hostbus=2,hostaddr=2,id=hostdev0,bus=usb.0,port=4";
         grubDebugConfig = "-stdio serial -s -S";
         memoryConfig = "-m 4096";
         baseConfig = "${self.qemu}/bin/qemu-system-x86_64 -kernel ${self.linux}/bzImage -initrd ${self.initrd}/initrd";
-      in
-      {
-        test-script-small-adapter = pkgs.writeShellScript "test-script-small" ''
+        in
+        {
+          test-script-small-adapter = pkgs.writeShellScript "test-script-small" ''
       #!${self.stdenv.shell}
-          ${baseConfig} -nographic ${memoryConfig} -append '${consoleConfig}'
-        '';
-        test-script-big-adapter = pkgs.writeShellScript "test-script-big" ''
+            ${baseConfig} -nographic ${memoryConfig} -append '${consoleConfig}'
+          '';
+          test-script-big-adapter = pkgs.writeShellScript "test-script-big" ''
       #!${self.stdenv.shell}
-          ${baseConfig} -nographic ${memoryConfig} ${usbAdapterConfig} -append '${consoleConfig}'
-        '';
-        debug-script = pkgs.writeShellScript "debug-script" ''
+            ${baseConfig} -nographic ${memoryConfig} -append '${consoleConfig}'
+          '';
+          debug-script = pkgs.writeShellScript "debug-script" ''
       #!${self.stdenv.shell}
-          ${baseConfig} -nographic ${memoryConfig} -append '${consoleConfig} ${grubDebugConfig}'
-        '';
+            ${baseConfig} -nographic ${memoryConfig} -append '${consoleConfig} ${grubDebugConfig}'
+          '';
+        };
       };
-    };
-    rootModules = [
+      rootModules = [
+      #"rtl8188ee"
       "rtlwifi"
+      "xhci_pci"
+      "ehci_pci"
+      "ahci"
+      "usbhid"
+      "usb_storage"
+      "sd_mod"
     ];
     modulesClosure = pkgs.makeModulesClosure {
       inherit kernel;
@@ -109,7 +120,7 @@ in pkgs.lib.fix (self: {
   inherit (pkgs) initrd;
   nixos = {
     inherit nixos;
-    inherit modulesClosure;
+    #inherit modulesClosure;
     inherit (kernel) dev;
     inherit (nixos) system;
     inherit (nixos.config.system.build) initialRamdisk;
