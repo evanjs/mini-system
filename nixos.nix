@@ -2,9 +2,9 @@
 with lib;
 let
   rjg-overlay = (import /home/evanjs/src/rjg/nixos/overlay/overlay.nix );
-  #sources = import ./nix/sources.nix;
-  #pkgs = (import sources.nixpkgs { overlays = [ rjg-overlay ]; });
-  pkgs = (import /home/evanjs/src/nixpkgs { overlays = [ rjg-overlay]; });
+  sources = import ./nix/sources.nix;
+  pkgs = (import sources.nixpkgs { overlays = [ rjg-overlay ]; });
+  #pkgs = (import /home/evanjs/src/nixpkgs { overlays = [ rjg-overlay]; });
   mylinuxPackages = pkgs.linuxPackages_4_19.extend (lib.const (ksuper: {
     kernel = ksuper.kernel.override {
       structuredExtraConfig = with import (pkgs.path + "/lib/kernel.nix") {
@@ -15,16 +15,16 @@ let
         USB_XHCI_PCI = mkForce yes;
         #PREEMPT = mkForce no;
         #PREEMPT_VOLUNTARY= mkForce no;
-        #RFKILL = yes;
+        RFKILL = yes;
       };
       #extraConfig = readFile ./kernel-fixed.config;
-      configfile = ./kernel.config;
+      #configfile = ./kernel.config;
     };
   }));
 in rec {
   imports = [
-    #(sources.nixpkgs + "/nixos/modules/profiles/minimal.nix")
-    <nixpkgs/nixos/modules/profiles/minimal.nix>
+    (sources.nixpkgs + "/nixos/modules/profiles/minimal.nix")
+    #<nixpkgs/nixos/modules/profiles/minimal.nix>
   ];
   fileSystems = {
     "/" = {

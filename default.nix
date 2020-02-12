@@ -1,15 +1,15 @@
 { kernelOverride ? null, ... }:
 let
-  #sources = import ./nix/sources.nix;
+  sources = import ./nix/sources.nix;
   busybox = pkgs.pkgsStatic.busybox.override {
     extraConfig = lib.readFile ./fixed.config;
   };
   stdenv = pkgs.pkgsMusl.stdenv;
-  #nixos = (import (sources.nixpkgs + "/nixos") { configuration = ./nixos.nix; });
-  nixos = (import <nixpkgs/nixos> { configuration = ./nixos.nix; });
+  nixos = (import (sources.nixpkgs + "/nixos") { configuration = ./nixos.nix; });
+  #nixos = (import <nixpkgs/nixos> { configuration = ./nixos.nix; });
 
-  #pkgs = (import sources.nixpkgs { overlays = [ overlay ]; });
-  pkgs = (import /home/evanjs/src/nixpkgs { overlays = [ overlay ]; });
+  pkgs = (import sources.nixpkgs { overlays = [ overlay ]; });
+  #pkgs = (import /home/evanjs/src/nixpkgs { overlays = [ overlay ]; });
   kernelVersion = kernel.modDirVersion;
 
   inherit (nixos.config.boot.kernelPackages) kernel;
@@ -82,9 +82,13 @@ let
           #object = "${modulesClosure}/lib/modules/${kernelVersion}/kernel/drivers/scsi";
           #symlink = "/lib/modules/${kernelVersion}/kernel/drivers/scsi";
         #}
+        #{
+          #object = "${modulesClosure}/lib/modules/${kernelVersion}/modules*";
+          #symlink = "/lib/modules/${kernelVersion}/";
+        #}
         {
-          object = "${modulesClosure}/lib/modules/${kernelVersion}/modules*";
-          symlink = "/lib/modules/${kernelVersion}/";
+          object = "${modulesClosure}/lib/modules/";
+          symlink = "/lib/modules";
         }
          
           #object = "${pkgs.rtlwifi_new-firmware}/lib/firmware";
