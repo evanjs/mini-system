@@ -5,26 +5,11 @@ let
   sources = import ./nix/sources.nix;
   #pkgs = (import sources.nixpkgs { overlays = [ rjg-overlay ]; });
   pkgs = (import /home/evanjs/src/nixpkgs { overlays = [ rjg-overlay]; });
-  mylinuxPackages = pkgs.linuxPackages_4_4.extend (lib.const (ksuper: {
-    kernel = ksuper.kernel.override {
-      structuredExtraConfig = with import (pkgs.path + "/lib/kernel.nix") {
-        inherit lib;
-        inherit (ksuper) version;
-      }; {
-        USB_EHCI_PCI = mkForce yes;
-        USB_XHCI_PCI = mkForce yes;
-        #PREEMPT = mkForce no;
-        #PREEMPT_VOLUNTARY= mkForce no;
-        RTL8188EU = yes;
-        RFKILL = yes;
-      };
-      #extraConfig = readFile ./kernel-fixed.config;
-      #configfile = ./kernel.config;
-    };
-  }));
+
 in rec {
   imports = [
     #(sources.nixpkgs + "/nixos/modules/profiles/minimal.nix")
+    ./linux_4_1.nix
     <nixpkgs/nixos/modules/profiles/minimal.nix>
   ];
   fileSystems = {
