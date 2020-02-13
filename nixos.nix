@@ -20,7 +20,7 @@ in rec {
 
   boot = {
     loader = { grub = { enable = false; }; };
-    kernelPackages = mylinuxPackages ;
+    kernelPackages = linuxPackages_4_1;
     initrd = {
       network = {
         enable = true;

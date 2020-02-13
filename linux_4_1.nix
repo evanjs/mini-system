@@ -15,7 +15,6 @@ let
     kernelPatches = [];
 
     structuredExtraConfig = with import (pkgs.path + "/lib/kernel.nix") {
-      inherit lib;
       inherit version;
     }; {
       USB_EHCI_PCI = yes;
