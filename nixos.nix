@@ -5,7 +5,8 @@ let
   sources = import ./nix/sources.nix;
   #pkgs = (import sources.nixpkgs { overlays = [ rjg-overlay ]; });
   pkgs = (import /home/evanjs/src/nixpkgs { overlays = [ rjg-overlay]; });
-  linuxPackages_4_1 = pkgs.callPackage ./linux_4_1.nix {};
+  linux_4_1 = pkgs.callPackage ./linux_4_1.nix {};
+  linuxPackages_4_1 = pkgs.linuxPackagesFor linux_4_1;
 
 in rec {
   imports = [
@@ -20,7 +21,7 @@ in rec {
 
   boot = {
     loader = { grub = { enable = false; }; };
-    kernelPackages = pkgs.linuxPackagesFor linuxPackages_4_1;
+    kernelPackages = linuxPackages_4_1;
     initrd = {
       network = {
         enable = true;
