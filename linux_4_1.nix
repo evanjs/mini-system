@@ -1,7 +1,7 @@
 { pkgs, ... }:
 let
   base = pkgs.linuxPackages.kernel;
-  linuxPackages_4_1 = { fetchurl, buildLinux, lib, ... } @ args:
+  linuxPackages_4_1 = { fetchurl, buildLinux, ... } @ args:
 
   buildLinux (args // rec {
     version = "4.1.8";
