@@ -1,7 +1,4 @@
-{ pkgs, ... }:
-let
-  base = pkgs.linuxPackages.kernel;
-  linuxPackages_4_1 = { fetchurl, buildLinux, ... } @ args:
+{ pkgs, lib, linuxPackages, linuxPackagesFor, buildLinux, fetchurl, ... } @ args:
 
   buildLinux (args // rec {
     version = "4.1.8";
@@ -15,16 +12,16 @@ let
     kernelPatches = [];
 
     structuredExtraConfig = with import (pkgs.path + "/lib/kernel.nix") {
-      inherit version;
+      inherit lib;
+      #inherit (base) version;
+      version = "4.1.8";
     }; {
       USB_EHCI_PCI = yes;
       USB_XHCI_PCI = yes;
       RTL8188EU = yes;
       RFKILL = yes;
+      EXFAT_FS = lib.mkForce no;
     };
 
     extraMeta.branch = "4.1";
-  } // (args.argsOverride or {}));
-  linux_4_1 = pkgs.callPackage linuxPackages_4_1 {};
-in
-  pkgs.recurseIntoAttrs (pkgs.linuxPackagesFor linux_4_1)
+  } // (args.argsOverride or {}))

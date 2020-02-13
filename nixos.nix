@@ -5,11 +5,11 @@ let
   sources = import ./nix/sources.nix;
   #pkgs = (import sources.nixpkgs { overlays = [ rjg-overlay ]; });
   pkgs = (import /home/evanjs/src/nixpkgs { overlays = [ rjg-overlay]; });
+  linuxPackages_4_1 = pkgs.callPackage ./linux_4_1.nix {};
 
 in rec {
   imports = [
     #(sources.nixpkgs + "/nixos/modules/profiles/minimal.nix")
-    ./linux_4_1.nix
     <nixpkgs/nixos/modules/profiles/minimal.nix>
   ];
   fileSystems = {
@@ -20,7 +20,7 @@ in rec {
 
   boot = {
     loader = { grub = { enable = false; }; };
-    kernelPackages = linuxPackages_4_1;
+    kernelPackages = pkgs.linuxPackagesFor linuxPackages_4_1;
     initrd = {
       network = {
         enable = true;
