@@ -1,17 +1,17 @@
-{ pkgs, lib, config, ... }:
+{ pkgs, lib, config, stdenv, ... }:
 with lib;
 let
   rjg-overlay = (import /home/evanjs/src/rjg/nixos/overlay/overlay.nix );
   sources = import ./nix/sources.nix;
-  #pkgs = (import sources.nixpkgs { overlays = [ rjg-overlay ]; });
-  pkgs = (import /home/evanjs/src/nixpkgs { overlays = [ rjg-overlay]; });
-  linux_4_1 = pkgs.callPackage ./linux_4_1.nix {};
-  linuxPackages_4_1 = pkgs.linuxPackagesFor linux_4_1;
+  local = (import /home/evanjs/src/nixpkgs { overlays = [ rjg-overlay ]; });
 
 in rec {
+  #config.nixpkgs.config = {
+    #replaceStdenv = { pkgs }: pkgs.ccacheStdenv;
+  #};
   imports = [
-    #(sources.nixpkgs + "/nixos/modules/profiles/minimal.nix")
-    <nixpkgs/nixos/modules/profiles/minimal.nix>
+    (sources.nixpkgs + "/nixos/modules/profiles/minimal.nix")
+    #<nixpkgs/nixos/modules/profiles/minimal.nix>
   ];
   fileSystems = {
     "/" = {
@@ -19,10 +19,20 @@ in rec {
     };
   };
 
+
   boot = {
-    loader = { grub = { enable = false; }; };
-    kernelPackages = linuxPackages_4_1;
+    #blacklistedKernelModules = [ "r8188eu" ];
+    loader = {
+      generic-extlinux-compatible.enable = true;
+      grub = {
+        enable = false;
+      };
+      efi = {
+        canTouchEfiVariables = true;
+      };
+    };
     initrd = {
+      availableKernelModules = [ "rtl8188eu" ];
       network = {
         enable = true;
         ssh = {
@@ -35,8 +45,9 @@ in rec {
     };
   };
 
+  #environment.systemPackages = with pkgs; [ realtime busybox usbutils wirelesstools hostapd iw ];
 
-  hardware.enableRedistributableFirmware = true;
+  #hardware.enableRedistributableFirmware = lib.mkForce true;
 
   fonts.fontconfig.enable = false;
   security.polkit.enable = false;
