@@ -45,6 +45,7 @@ let
           USB_EHCI_HCD = yes;
           USB_XHCI_HCD = yes;
           UEVENT_HELPER = yes;
+          EFIVAR_FS = yes;
         };
         extraConfig = ''
           UEVENT_HELPER_PATH /proc/sys/kernel/hotplug
@@ -76,7 +77,7 @@ let
     };
     initrd-tools = self.buildEnv {
       name = "initrd-tools";
-      paths = [ self.realtime self.busybox pkgs.usbutils pkgs.wirelesstools pkgs.hostapd pkgs.iw ];
+      paths = [ self.realtime self.busybox pkgs.usbutils pkgs.wirelesstools pkgs.hostapd pkgs.iw pkgs.efibootmgr pkgs.efitools pkgs.efivar ];
     };
     initrd = self.makeInitrd {
       contents = [
@@ -122,25 +123,36 @@ let
         lowMemoryConfig = "-m 1024";
         highMemoryConfig = "-m 4096";
 
-        baseConfig = "${self.qemu}/bin/qemu-system-x86_64 -kernel ${kernel2}/bzImage -initrd ${self.initrd}/initrd ${usb3AdapterConfig}";
+        efiConfig = "-enable-kvm -bios ${pkgs.OVMF.fd}/FV/OVMF.fd";
+
+        baseConfig = "${self.qemu}/bin/qemu-system-x86_64 -kernel ${kernel}/bzImage -initrd ${self.initrd}/initrd ${usb3AdapterConfig}";
         baseConfigInitrdInKernel = "${self.qemu}/bin/qemu-system-x86_64 -kernel ${kernel2}/bzImage ${usb3AdapterConfig}";
       in
       {
         test-script-small-adapter = pkgs.writeShellScript "test-script-small" ''
       #!${self.stdenv.shell}
-            ${baseConfig} -nographic ${highMemoryConfig} -append '${consoleConfig}'
+            ${baseConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
         '';
         test-script-big-adapter = pkgs.writeShellScript "test-script-big" ''
+      #!${self.stdenv.shell}
+            ${baseConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
+        '';
+        test-script-big-adapter-embedded-initrd = pkgs.writeShellScript "test-script-big-embedded-initrd" ''
+      #!${self.stdenv.shell}
+            ${baseConfigInitrdInKernel} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
+        '';
+
+        test-script-big-adapter-no-efi = pkgs.writeShellScript "test-script-big-no-efi" ''
       #!${self.stdenv.shell}
             ${baseConfig} -nographic ${highMemoryConfig} -append '${consoleConfig}'
         '';
         debug-script = pkgs.writeShellScript "debug-script" ''
       #!${self.stdenv.shell}
-            ${baseConfig} -nographic ${highMemoryConfig} -append '${consoleConfig} ${grubDebugConfig}'
+            ${baseConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig} ${grubDebugConfig}'
         '';
         test-script-builtin-initrd = pkgs.writeShellScript "kernel-with-initrd" ''
       #!${self.stdenv.shell}
-          ${baseConfigInitrdInKernel} -nographic ${highMemoryConfig} -append '${consoleConfig}'
+          ${baseConfigInitrdInKernel} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
         '';
       };
     };
