@@ -55,8 +55,16 @@ let
           BLK_DEV_INITRD = yes;
           RD_GZIP = yes;
         };
-        extraConfig = ''
-          INITRAMFS_SOURCE ${self.initrd}
+        extraConfig =
+          let
+            initrd-cpio =
+              pkgs.runCommand "initrd-link" {} ''
+                mkdir $out
+                ln -s ${self.initrd}/initrd $out/initrd.cpio
+              '';
+          in
+          ''
+            INITRAMFS_SOURCE ${initrd-cpio}/initrd.cpio
         '';
       };
     }));
@@ -79,7 +87,7 @@ let
       paths = [ self.realtime self.busybox pkgs.usbutils pkgs.wirelesstools pkgs.hostapd pkgs.iw pkgs.efibootmgr pkgs.efitools pkgs.efivar ];
     };
     initrd = self.makeInitrd {
-      #compressor = "cat";
+        compressor = "cat";
       contents = [
         {
           object = "${self.initrd-tools}/bin";
