@@ -123,8 +123,13 @@ let
       let
         consoleConfig = "console=ttyS0";
 
-        usb3AdapterConfig = "-device qemu-xhci,id=xhci -device usb-host,bus=xhci.0,vendorid=0x2357,productid=0x010c";
-        usb2AdapterConfig = "-device usb-ehci,id=ehci -device usb-host,bus=ehci.0,vendorid=0x2357,productid=0x010c";
+        usb3HubConfig = "-device qemu-xhci,id=xhci -device usb-host,bus=xhci.0";
+        usb2HubConfig = "-device usb-ehci,id=ehci -device usb-host,bus=ehci.0";
+
+        # TP-Link TL-WN722N v2
+        bigAdapterConfig = ",vendorid=0x2357,productid=0x010c";
+        # Realtek Semiconductor Corp. RTL8188EUS 802.11n Wireless Network Adapter
+        smallAdapterConfig = ",vendorid=0x0bda,productid=0x8179";
 
         grubDebugConfig = "-stdio serial -s -S";
 
@@ -133,26 +138,29 @@ let
 
         efiConfig = "-enable-kvm -bios ${pkgs.OVMF.fd}/FV/OVMF.fd";
 
-        baseConfig = "${self.qemu}/bin/qemu-system-x86_64 -kernel ${kernel}/bzImage -initrd ${self.initrd}/initrd ${usb3AdapterConfig}";
-        baseConfigInitrdInKernel = "${self.qemu}/bin/qemu-system-x86_64 -kernel ${kernel2}/bzImage ${usb3AdapterConfig}";
+        baseConfig = "${self.qemu}/bin/qemu-system-x86_64 -kernel ${kernel}/bzImage -initrd ${self.initrd}/initrd ${usb3HubConfig}";
+        baseConfigInitrdInKernel = "${self.qemu}/bin/qemu-system-x86_64 -kernel ${kernel2}/bzImage ${usb3HubConfig}";
       in
       {
         test-script-small-adapter = pkgs.writeShellScript "test-script-small" ''
       #!${self.stdenv.shell}
-            ${baseConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
+            ${baseConfig}${smallAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
         '';
         test-script-big-adapter = pkgs.writeShellScript "test-script-big" ''
       #!${self.stdenv.shell}
-            ${baseConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
+            ${baseConfig}${bigAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
         '';
         test-script-big-adapter-embedded-initrd = pkgs.writeShellScript "test-script-big-embedded-initrd" ''
       #!${self.stdenv.shell}
-            ${baseConfigInitrdInKernel} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
+            ${baseConfigInitrdInKernel}${bigAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
         '';
-
+        test-script-small-adapter-embedded-initrd = pkgs.writeShellScript "test-script-small-embedded-initrd" ''
+      #!${self.stdenv.shell}
+            ${baseConfigInitrdInKernel}${smallAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
+        '';
         test-script-big-adapter-no-efi = pkgs.writeShellScript "test-script-big-no-efi" ''
       #!${self.stdenv.shell}
-            ${baseConfig} -nographic ${highMemoryConfig} -append '${consoleConfig}'
+            ${baseConfig}${bigAdapterConfig} -nographic ${highMemoryConfig} -append '${consoleConfig}'
         '';
         debug-script = pkgs.writeShellScript "debug-script" ''
       #!${self.stdenv.shell}
