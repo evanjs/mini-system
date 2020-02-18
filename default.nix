@@ -12,7 +12,6 @@ let
   kernel2 = pkgs.customWithInitrd.kernel;
 
   pkgs = (import sources.nixpkgs { overlays = [ overlay ]; });
-  local = (import /home/evanjs/src/nixpkgs { overlays = [ rjg-overlay]; });
   kernelVersion = kernel.modDirVersion;
   rjg-overlay = (import /home/evanjs/src/rjg/nixos/overlay/overlay.nix );
   hostapd = pkgs.callPackage ./hostapd { };
@@ -22,17 +21,12 @@ let
   kernel = kernelPackages.kernel;
 
 
-  #modulesClosure = local.makeModulesClosure {
-    #inherit kernel rootModules;
-    #firmware = kernel;
-  #};
 
   lib = pkgs.lib;
   x86_64 = pkgs;
   overlay = self: super: {
-    customLinuxPackages = local.linuxPackages_4_4.extend ( lib.const (ksuper: {
+    customLinuxPackages = pkgs.linuxPackages_4_4.extend ( lib.const (ksuper: {
       kernel = ksuper.kernel.override {
-        configfile = ./linux/kernel.config;
         structuredExtraConfig = with import (pkgs.path + "/lib/kernel.nix") {
           inherit lib;
           inherit (ksuper) version;
@@ -48,16 +42,21 @@ let
           EFIVAR_FS = yes;
         };
         extraConfig = ''
-          UEVENT_HELPER_PATH /proc/sys/kernel/hotplug
+          UEVENT_HELPER_PATH /proc/svys/kernel/hotplug
         '';
       };
     }));
     customWithInitrd = self.customLinuxPackages.extend (lib.const (ksuper: {
       kernel = ksuper.kernel.override {
-        configfile = ./linux/kernel.config;
+        structuredExtraConfig = with import (pkgs.path + "/lib/kernel.nix") {
+          inherit lib;
+          inherit (ksuper) version;
+        }; {
+          BLK_DEV_INITRD = yes;
+          RD_GZIP = yes;
+        };
         extraConfig = ''
           INITRAMFS_SOURCE ${self.initrd}
-          BLK_DEV_INITRD y
         '';
       };
     }));
@@ -80,6 +79,7 @@ let
       paths = [ self.realtime self.busybox pkgs.usbutils pkgs.wirelesstools pkgs.hostapd pkgs.iw pkgs.efibootmgr pkgs.efitools pkgs.efivar ];
     };
     initrd = self.makeInitrd {
+      #compressor = "cat";
       contents = [
         {
           object = "${self.initrd-tools}/bin";
@@ -150,10 +150,6 @@ let
       #!${self.stdenv.shell}
             ${baseConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig} ${grubDebugConfig}'
         '';
-        test-script-builtin-initrd = pkgs.writeShellScript "kernel-with-initrd" ''
-      #!${self.stdenv.shell}
-          ${baseConfigInitrdInKernel} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
-        '';
       };
     };
     #rootModules = [
@@ -171,6 +167,7 @@ let
 in pkgs.lib.fix (self: {
   x86_64 = { inherit (x86_64) scripts; };
   inherit kernel kernel2;
+  inherit (pkgs) realtime;
 
   kernelShell = kernelPackages.kernel.overrideDerivation
   (drv: {

@@ -1,4 +1,0 @@
-#!/usr/bin/env sh
-cat kernel.config | sed -r 's;CONFIG_;;' > mid.config
-cat mid.config | sed -r 's;\=; ;' > kernel-fixed.config
-#rm mid.config

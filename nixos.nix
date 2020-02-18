@@ -3,7 +3,7 @@ with lib;
 let
   rjg-overlay = (import /home/evanjs/src/rjg/nixos/overlay/overlay.nix );
   sources = import ./nix/sources.nix;
-  local = (import /home/evanjs/src/nixpkgs { overlays = [ rjg-overlay ]; });
+  #local = (import /home/evanjs/src/nixpkgs { overlays = [ rjg-overlay ]; });
 
 in rec {
   #config.nixpkgs.config = {

@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+cat kernel.config | sed -r 's;^# CONFIG_;;' > kern-1.config
+cat kern-1.config | sed -r 's;CONFIG_;;' > kern-2.config
+cat kern-2.config | sed -r 's;\=; ;' > kern-3.config
+cat kern-3.config | sed -r 's;(.*)( is not set);\1 n;' > kern-4.config
+cat kern-4.config | sed -r 's;"(\w+)";\1;' > kern-5.config
+cat kern-5.config | sed -r 's;";;g' > kern-6.config
+cat kern-6.config | sed -r 's;\s$; \"\";' > kernel-fixed.config
+#rm mid.config
