@@ -2,3 +2,8 @@
 	path = realtime
 	url = ssh://git@misc.rjginc.com:7999/~evan.stoll/realtime.git
 	branch = musl_things
+[submodule "overlay"]
+	path = overlay
+	url = ssh://git@misc.rjginc.com:7999/~evan.stoll/overlay.git
+	branch = master
+
