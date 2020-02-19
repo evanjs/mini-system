@@ -1,4 +1,4 @@
-{ kernelOverride ? null, ... }:
+{ kernelOverride ? null, updateKey ? null, cpioOverride ? null, ... }:
 let
   sources = import ./nix/sources.nix;
   busybox = pkgs.pkgsStatic.busybox.override {
@@ -12,13 +12,36 @@ let
 
   kernelPackages = pkgs.customLinuxPackages;
   kernel2 = pkgs.customWithInitrd.kernel;
+  updEFIFile =
+    pkgs.runCommand "make-efi" {} ''
+      mkdir -p $out/mnt/boot/EFI/BOOT
+      ln -s ${kernel2}/bzImage $out/mnt/boot/EFI/BOOT/BOOTX64.EFI
+    '';
+
+  compressedEFI =
+    pkgs.runCommand "make-compressed-efi" {} ''
+      mkdir $out
+      tar -hcaf $out/update.tar.xz -C ${updEFIFile} mnt
+    '';
+
+  deploySensorTesterImage = pkgs.rjg.core-infrastructure.deploy-sensor-tester-image;
+
+  sensorTesterUPDFile =
+    assert lib.asserts.assertMsg (updateKey != null) "An update key must be provided when creating a UPD file";
+    let
+      updateFile = updateKey;
+    in
+      pkgs.runCommand "make-upd" {} ''
+        mkdir $out
+        ${pkgs.rjg.core-infrastructure.pack-update_2}/bin/pack_update_2 ${deploySensorTesterImage}/meta_data.zip ${compressedEFI}/update.tar.xz $out/stester.upd ${updateFile}
+      '';
+
 
   pkgs = (import sources.nixpkgs { overlays = [ overlay ]; });
   kernelVersion = kernel.modDirVersion;
-  rjg-overlay = (import /home/evanjs/src/rjg/nixos/overlay/overlay.nix);
+  rjg-overlay = (import ./overlay/overlay.nix);
 
-  rtl8188eu = pkgs.callPackage /home/evanjs/src/nixpkgs/pkgs/os-specific/linux/rtl8188eu { inherit kernel; };
-
+  rtl8188eu = pkgs.callPackage ./overlay/pkgs/os-specific/linux/rtl8188eu { inherit kernel; };
   kernel = kernelPackages.kernel;
 
   lib = pkgs.lib;
@@ -43,7 +66,7 @@ let
               EFIVAR_FS = yes;
             };
             extraConfig = ''
-              UEVENT_HELPER_PATH /proc/svys/kernel/hotplug
+              UEVENT_HELPER_PATH /proc/sys/kernel/hotplug
             '';
           };
         }
@@ -73,19 +96,21 @@ let
 
               let
                 initrd-cpio =
-                  pkgs.runCommand "initrd-link" {} ''
-                    mkdir $out
-                    ln -s ${self.initrd}/initrd $out/initrd.cpio
-                  '';
+                  if cpioOverride != null then "${cpioOverride}" else
+                    pkgs.runCommand "initrd-link" {} ''
+                      mkdir $out
+                      ln -s ${self.initrd}/initrd $out/initrd.cpio
+                    '';
               in
                 ''
-                  UEVENT_HELPER_PATH /proc/svys/kernel/hotplug
+                  UEVENT_HELPER_PATH /proc/sys/kernel/hotplug
                   INITRAMFS_SOURCE ${initrd-cpio}/initrd.cpio
                 '';
           };
         }
       )
     );
+
     realtime = (
       pkgs.pkgsMusl.callPackage ./realtime {
         deploy = false;
@@ -164,47 +189,34 @@ let
         {
           test-script-small-adapter = pkgs.writeShellScript "test-script-small" ''
             #!${self.stdenv.shell}
-                        ${baseConfig}${smallAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
+            ${baseConfig}${smallAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
           '';
           test-script-big-adapter = pkgs.writeShellScript "test-script-big" ''
             #!${self.stdenv.shell}
-                        ${baseConfig}${bigAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
+            ${baseConfig}${bigAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
           '';
           test-script-big-adapter-embedded-initrd = pkgs.writeShellScript "test-script-big-embedded-initrd" ''
             #!${self.stdenv.shell}
-                        ${baseConfigInitrdInKernel}${bigAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
+            ${baseConfigInitrdInKernel}${bigAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
           '';
           test-script-small-adapter-embedded-initrd = pkgs.writeShellScript "test-script-small-embedded-initrd" ''
             #!${self.stdenv.shell}
-                        ${baseConfigInitrdInKernel}${smallAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
+            ${baseConfigInitrdInKernel}${smallAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
           '';
           test-script-big-adapter-no-efi = pkgs.writeShellScript "test-script-big-no-efi" ''
             #!${self.stdenv.shell}
-                        ${baseConfig}${bigAdapterConfig} -nographic ${highMemoryConfig} -append '${consoleConfig}'
+            ${baseConfig}${bigAdapterConfig} -nographic ${highMemoryConfig} -append '${consoleConfig}'
           '';
           debug-script = pkgs.writeShellScript "debug-script" ''
             #!${self.stdenv.shell}
-                        ${baseConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig} ${grubDebugConfig}'
+            ${baseConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig} ${grubDebugConfig}'
           '';
         };
   };
-  #rootModules = [
-  ##"rtl8188eu"
-  #"rtl8192"
-  #"cfg80211"
-  #"usbhid"
-  #"xhci_hcd"
-  #"ehci_hcd"
-  #"xhci_pci"
-  #"ehci_pci"
-  #"af_packet"
-  #];
-
 in
 pkgs.lib.fix (
   self: {
     x86_64 = { inherit (x86_64) scripts; };
-    inherit kernel kernel2;
     inherit (pkgs) realtime;
 
     kernelShell = kernelPackages.kernel.overrideDerivation
@@ -223,6 +235,7 @@ pkgs.lib.fix (
       nix-shell -E 'with import <nixpkgs> {}; linux_4_4.overrideAttrs (o: {nativeBuildInputs=o.nativeBuildInputs ++ [ pkgconfig ncurses ];})'
     '';
     inherit (pkgs) initrd;
+    inherit pkgs;
     nixos = {
       inherit (nixos) system;
       inherit (nixos.config.system.build) initialRamdisk;
