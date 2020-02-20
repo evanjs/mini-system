@@ -56,6 +56,6 @@ while [ ! -e /dev/ttyS0 ]; do
   sleep 1
 done
 
-echo serial_number=$serial_number > /dev/tty
-echo country_code=$country_code > /dev/tty
-strings "$(echo `readlink /bin/SensorTester` | cut -d / -f -4)/libexec/SensorTester" |  grep "\"version\":\"" > /dev/tty
+echo serial_number=$serial_number > /dev/console
+echo country_code=$country_code > /dev/console
+strings "$(echo `readlink /bin/SensorTester` | cut -d / -f -4)/libexec/SensorTester" |  grep "\"version\":\"" > /dev/console
