@@ -205,6 +205,7 @@ pkgs.lib.fix (
   self: {
     x86_64 = { inherit (x86_64) scripts; };
     inherit (pkgs) realtime;
+    inherit kernel kernel2;
 
     kernelShell = kernelPackages.kernel.overrideDerivation
       (
