@@ -1,4 +1,10 @@
-{ kernelOverride ? null, updateKey ? null, cpioOverride ? null, ... }:
+{ kernelOverride ? null
+, updateKey ? null
+, cpioOverride ? null
+, hardwareVersion ? "0.0.0"
+, softwareVersion ? "0.0.0"
+, ... 
+}:
 let
   sources = import ./nix/sources.nix;
   busybox = pkgs.pkgsStatic.busybox.override {
@@ -96,15 +102,13 @@ let
       )
     );
 
-
-
+    # realtime with sensor tester functionality enabled
     realtime = (
       pkgs.pkgsMusl.callPackage ./realtime {
         deploy = false;
         withSensorTester = true;
         withEthercat = false;
-        softwareVersion = "5.0.0";
-        hardwareVersion = "10.0.0";
+        inherit hardwareVersion softwareVersion;
       }
     );
     script = pkgs.writeTextFile {
