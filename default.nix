@@ -75,41 +75,28 @@ let
     customWithInitrd = self.customLinuxPackages.extend (
       lib.const (
         ksuper: {
-          kernel = ksuper.kernel.override {
-            structuredExtraConfig = with import (pkgs.path + "/lib/kernel.nix") {
-              inherit lib;
-              inherit (ksuper) version;
-            }; {
-              CFG80211 = yes;
-              PACKET = yes;
-              RFKILL = yes;
-              USB = yes;
-              USB_COMMON = yes;
-              USB_EHCI_HCD = yes;
-              USB_XHCI_HCD = yes;
-              UEVENT_HELPER = yes;
-              EFIVAR_FS = yes;
-              BLK_DEV_INITRD = yes;
-              RD_GZIP = yes;
-            };
-            extraConfig =
+          kernel = (
+            ksuper.kernel.override {
+              extraConfig =
+                let
+                  initrd-cpio =
+                    if cpioOverride != null then "${cpioOverride}" else
+                      pkgs.runCommand "initrd-link" {} ''
+                        mkdir $out
+                        ln -s ${self.initrd}/initrd $out/initrd.cpio
+                      '';
+                in
+                  ''
+                    INITRAMFS_SOURCE ${initrd-cpio}/initrd.cpio
+                  '';
+            }
+          );
 
-              let
-                initrd-cpio =
-                  if cpioOverride != null then "${cpioOverride}" else
-                    pkgs.runCommand "initrd-link" {} ''
-                      mkdir $out
-                      ln -s ${self.initrd}/initrd $out/initrd.cpio
-                    '';
-              in
-                ''
-                  UEVENT_HELPER_PATH /proc/sys/kernel/hotplug
-                  INITRAMFS_SOURCE ${initrd-cpio}/initrd.cpio
-                '';
-          };
         }
       )
     );
+
+
 
     realtime = (
       pkgs.pkgsMusl.callPackage ./realtime {
