@@ -1,0 +1,7 @@
+::sysinit:/etc/sysinit
+::restart:/sbin/init
+::shutdown:sync
+::shutdown:umount -a -r
+::ctrlaltdel:/sbin/reboot
+::respawn:/bin/cttyhack /bin/sh
+::respawn:runsv /tmp/services/RTService

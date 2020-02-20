@@ -1,0 +1,2 @@
+#!/bin/sh
+exec hostapd /tmp/hostapd.conf

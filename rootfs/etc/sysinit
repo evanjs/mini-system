@@ -1,0 +1,61 @@
+#!/bin/sh
+# System initialization
+#
+# /sbin/init
+#       |
+#       +--(1) /etc/sysinit
+#       |
+#       L--(2) /bin/sh (main console)
+
+dmesg -n 1
+
+#mount -t devtmpfs none /dev
+mount -t proc none /proc
+mkdir /tmp
+mount -t tmpfs none /tmp -o mode=1777
+mount -t sysfs none /sys
+mkdir -p /dev/pts
+mount -t devpts none /dev/pts
+mkdir /dev/shm
+mount -t tmpfs none /dev/shm -o mode=1777,rw,nosuid,nodev,noexec,noatime
+mount -t efivarfs none /sys/firmware/efi/efivars -o rw,nosuid,nodev,noexec,noatime
+mount /dev/sda1 /mnt/boot
+sleep 1
+
+mkdir /dev/serial
+mkdir /dev/serial/by-id
+mkdir -p /run/hostapd
+
+cp -R /etc/services /tmp/
+
+# wait until /proc/sys/kernel exists before we try to echo mdev
+while [ -z /proc/sys/kernel ]; do
+	sleep 1
+done
+
+echo /bin/mdev > /proc/sys/kernel/hotplug
+mdev -s
+
+
+touch /sys/firmware/efi/efivars/rjginfo-e6c2f70a-b604-4877-85ba-deec89e117eb
+
+country_code=$(strings /sys/firmware/efi/efivars/rjginfo-e6c2f70a-b604-4877-85ba-deec89e117eb | sed 's/,/\n/g' | grep "COUNTRY_CODE" | sed 's/COUNTRY_CODE=//')
+serial_number=$(strings /sys/firmware/efi/efivars/rjginfo-e6c2f70a-b604-4877-85ba-deec89e117eb | sed 's/,/\n/g' | grep "SERIAL_NUMBER" | sed 's/SERIAL_NUMBER=//')
+
+cp /etc/hostapd.conf /tmp/
+sed -i "/country_code=COUNTRY_CODE/c\country_code=$country_code" /tmp/hostapd.conf
+sed -i "/ssid=Sensor Tester SERIAL_NUMBER/c\ssid=Sensor Tester $serial_number" /tmp/hostapd.conf
+
+# this is moved to tmp so a read-only root can be used
+# a supervise folder with stuff will be created under each service
+
+modprobe 8188eu
+
+# wait for the usbsi device
+while [ ! -e /dev/ttyS0 ]; do
+  sleep 1
+done
+
+echo serial_number=$serial_number > /dev/tty
+echo country_code=$country_code > /dev/tty
+strings "$(echo `readlink /bin/SensorTester` | cut -d / -f -4)/libexec/SensorTester" |  grep "\"version\":\"" > /dev/tty

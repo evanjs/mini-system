@@ -1,0 +1,15 @@
+#!/bin/sh
+
+case "${ACTION}" in
+  'add'|'')
+    ifconfig wlan0 10.45.55.1 netmask 255.255.255.0 up
+    runsv /tmp/services/dhcpd &
+    runsv /tmp/services/hostapd &
+    runsv /tmp/services/SensorTester &
+  ;;
+  'remove')
+    sv exit /tmp/services/SensorTester
+    sv exit /tmp/services/hostapd
+    sv exit /tmp/services/dhcpd
+  ;;
+esac
