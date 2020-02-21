@@ -14,10 +14,29 @@ let
     import (sources.nixpkgs + "/nixos") {
       configuration = ./nixos.nix;
     }
-  );
-
+    );
+  
+  OVMFFile = "${pkgs.OVMF.fd}/FV/OVMF.fd";
   kernelPackages = pkgs.customLinuxPackages;
   kernel2 = pkgs.customWithInitrd.kernel;
+  startupScript = pkgs.writeTextFile {
+    name = "startup.nsh";
+    text = ''
+      \EFI\BOOT\bzImage rw root=/dev/sda2 initrd=\EFI\BOOT\initrd console=ttyS0
+    '';
+    executable = true;
+  };
+
+
+
+  updEFIDir =
+    pkgs.runCommand "make-efi-dir" {} ''
+      mkdir -p $out/EFI/BOOT
+      efidir=$out/EFI/BOOT
+      ln -s ${startupScript} $out/startup.nsh
+      ln -s ${pkgs.initrd}/initrd $efidir/initrd
+      ln -s ${kernel}/bzImage $efidir/bzImage
+    '';
   updEFIFile =
     pkgs.runCommand "make-efi" {} ''
       mkdir -p $out/mnt/boot/EFI/BOOT
@@ -172,7 +191,7 @@ let
         lowMemoryConfig = "-m 1024";
         highMemoryConfig = "-m 4096";
 
-        efiConfig = "-enable-kvm -bios ${pkgs.OVMF.fd}/FV/OVMF.fd";
+        efiConfig = "-enable-kvm -bios ${OVMFFile}";
 
         baseConfig = "${self.qemu}/bin/qemu-system-x86_64 -kernel ${kernel}/bzImage -initrd ${self.initrd}/initrd ${usb3HubConfig}";
         baseConfigInitrdInKernel = "${self.qemu}/bin/qemu-system-x86_64 -kernel ${kernel2}/bzImage ${usb3HubConfig}";
@@ -202,6 +221,10 @@ let
             #!${self.stdenv.shell}
             ${baseConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig} ${grubDebugConfig}'
           '';
+          startup-script = pkgs.writeShellScript "startup-script" ''
+            #!${self.stdenv.shell}
+            ${self.qemu}/bin/qemu-system-x86_64 ${usb3HubConfig}${smallAdapterConfig} -nographic ${highMemoryConfig} -drive format=raw,file=fat:rw:${updEFIDir} -net none -drive if=pflash,format=raw,readonly,file=${OVMFFile}
+          '';
         };
   };
 in
@@ -210,6 +233,7 @@ pkgs.lib.fix (
     x86_64 = { inherit (x86_64) scripts; };
     inherit (pkgs) realtime;
     inherit kernel kernel2;
+    inherit sensorTesterUPDFile updEFIDir startupScript;
 
     kernelShell = kernelPackages.kernel.overrideDerivation
       (
