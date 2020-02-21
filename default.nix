@@ -43,7 +43,7 @@ let
       '';
 
 
-  pkgs = (import sources.nixpkgs { overlays = [ overlay ]; });
+  pkgs = (import sources.nixpkgs { overlays = [ overlay rjg-overlay ]; });
   kernelVersion = kernel.modDirVersion;
   rjg-overlay = (import ./overlay/overlay.nix);
 
