@@ -3,6 +3,7 @@
 , cpioOverride ? null
 , hardwareVersion ? "0.0.0"
 , softwareVersion ? "0.0.0"
+, realtimeRevision ? "unknown"
 , ... 
 }:
 let
@@ -127,6 +128,7 @@ let
         deploy = false;
         withSensorTester = true;
         withEthercat = false;
+        rev = realtimeRevision;
         inherit hardwareVersion softwareVersion;
       }
     );
