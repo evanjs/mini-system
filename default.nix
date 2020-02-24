@@ -142,7 +142,7 @@ let
       paths = [ self.realtime self.busybox pkgs.usbutils pkgs.wirelesstools pkgs.hostapd pkgs.iw pkgs.efibootmgr pkgs.efitools pkgs.efivar ];
     };
     initrd = self.makeInitrd {
-      compressor = "cat";
+      compressor = "xz --check=crc32";
       contents = [
         {
           object = "${self.initrd-tools}/bin";
