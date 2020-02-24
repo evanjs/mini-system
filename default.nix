@@ -7,8 +7,7 @@
 , ... 
 }:
 let
-  #sources = import ./nix/sources.nix;
-  sources = <nixpkgs>;
+  sources = import ./nix/sources.nix;
   busybox = pkgs.pkgsStatic.busybox.override {
     extraConfig = lib.readFile ./fixed.config;
   };
