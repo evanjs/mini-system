@@ -45,7 +45,7 @@ let
       mkdir -p mnt/boot
       mkdir -p $out
 
-      ln -s ${updEFIDir}/EFI mnt/boot/
+      ln -s ${updEFIDir} mnt/boot/
 
       tar -hcaf $out/update.tar.xz mnt/boot
     '';
