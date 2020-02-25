@@ -30,6 +30,8 @@ let
 
 
 
+  # create a directory with all the contents required to boot into a minimal system
+  # kernel, initrd and startup script
   updEFIDir =
     pkgs.runCommand "make-efi-dir" {} ''
       mkdir -p $out/EFI/BOOT
@@ -38,12 +40,21 @@ let
       ln -s ${pkgs.initrd}/initrd $efidir/initrd
       ln -s ${kernel}/bzImage $efidir/bzImage
     '';
+
+  compressedEFIDir =
+    pkgs.runCommand "compress-efi-dir" {} ''
+      mkdir -p $out/mnt/boot/EFI/BOOT
+      tar -hcaf $out/update.tar.xz -C ${updEFIDir} EFI
+    '';
+
+  # DEPRECATED: See updEFIDir
   updEFIFile =
     pkgs.runCommand "make-efi" {} ''
       mkdir -p $out/mnt/boot/EFI/BOOT
-      ln -s ${kernel2}/bzImage $out/mnt/boot/EFI/BOOT/BOOTX64.EFI
+      ln -s ${kernel}/bzImage $out/mnt/boot/EFI/BOOT/BOOTX64.EFI
     '';
 
+  # DEPRECATED: see updEFIDir
   compressedEFI =
     pkgs.runCommand "make-compressed-efi" {} ''
       mkdir $out
@@ -59,7 +70,7 @@ let
     in
       pkgs.runCommand "make-upd" {} ''
         mkdir $out
-        ${pkgs.rjg.core-infrastructure.pack-update_2}/bin/pack_update_2 ${deploySensorTesterImage}/meta_data.zip ${compressedEFI}/update.tar.xz $out/stester.upd ${updateFile}
+        ${pkgs.rjg.core-infrastructure.pack-update_2}/bin/pack_update_2 ${deploySensorTesterImage}/meta_data.zip ${compressedEFIDir}/update.tar.xz $out/stester.upd ${updateFile}
       '';
 
 
