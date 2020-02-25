@@ -4,7 +4,7 @@
 , hardwareVersion ? "0.0.0"
 , softwareVersion ? "0.0.0"
 , realtimeRevision ? "unknown"
-, ... 
+, ...
 }:
 let
   sources = import ./nix/sources.nix;
@@ -15,8 +15,8 @@ let
     import (sources.nixpkgs + "/nixos") {
       configuration = ./nixos.nix;
     }
-    );
-  
+  );
+
   OVMFFile = "${pkgs.OVMF.fd}/FV/OVMF.fd";
   kernelPackages = pkgs.customLinuxPackages;
   kernel2 = pkgs.customWithInitrd.kernel;
