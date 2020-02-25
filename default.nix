@@ -28,8 +28,6 @@ let
     executable = true;
   };
 
-
-
   # create a directory with all the contents required to boot into a minimal system
   # kernel, initrd and startup script
   updEFIDir =
@@ -41,24 +39,15 @@ let
       ln -s ${kernel}/bzImage $efidir/bzImage
     '';
 
+  # Compress the EFI directory and wrap it into a mnt/boot directory
   compressedEFIDir =
     pkgs.runCommand "compress-efi-dir" {} ''
-      mkdir -p $out/mnt/boot/EFI/BOOT
-      tar -hcaf $out/update.tar.xz -C ${updEFIDir} EFI
-    '';
+      mkdir -p mnt/boot
+      mkdir -p $out
 
-  # DEPRECATED: See updEFIDir
-  updEFIFile =
-    pkgs.runCommand "make-efi" {} ''
-      mkdir -p $out/mnt/boot/EFI/BOOT
-      ln -s ${kernel}/bzImage $out/mnt/boot/EFI/BOOT/BOOTX64.EFI
-    '';
+      ln -s ${updEFIDir}/EFI mnt/boot/
 
-  # DEPRECATED: see updEFIDir
-  compressedEFI =
-    pkgs.runCommand "make-compressed-efi" {} ''
-      mkdir $out
-      tar -hcaf $out/update.tar.xz -C ${updEFIFile} mnt
+      tar -hcaf $out/update.tar.xz mnt/boot
     '';
 
   deploySensorTesterImage = pkgs.rjg.core-infrastructure.deploy-sensor-tester-image;
@@ -72,7 +61,6 @@ let
         mkdir $out
         ${pkgs.rjg.core-infrastructure.pack-update_2}/bin/pack_update_2 ${deploySensorTesterImage}/meta_data.zip ${compressedEFIDir}/update.tar.xz $out/stester.upd ${updateFile}
       '';
-
 
   pkgs = (import sources.nixpkgs { overlays = [ overlay rjg-overlay ]; });
   kernelVersion = kernel.modDirVersion;
@@ -246,7 +234,7 @@ pkgs.lib.fix (
     x86_64 = { inherit (x86_64) scripts; };
     inherit (pkgs) realtime;
     inherit kernel kernel2;
-    inherit sensorTesterUPDFile updEFIDir startupScript;
+    inherit sensorTesterUPDFile updEFIDir startupScript compressedEFIDir;
 
     kernelShell = kernelPackages.kernel.overrideDerivation
       (
