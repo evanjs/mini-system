@@ -23,7 +23,7 @@ let
   startupScript = pkgs.writeTextFile {
     name = "startup.nsh";
     text = ''
-      \EFI\BOOT\bzImage rw root=/dev/sda2 initrd=\EFI\BOOT\initrd console=ttyS0
+      \EFI\BOOT\vmlinuz-linux rw root=/dev/sda2 initrd=\EFI\BOOT\initrd console=ttyS0
     '';
     executable = true;
   };
@@ -36,7 +36,7 @@ let
       efidir=$out/EFI/BOOT
       ln -s ${startupScript} $out/startup.nsh
       ln -s ${pkgs.initrd}/initrd $efidir/initrd
-      ln -s ${kernel}/bzImage $efidir/bzImage
+      ln -s ${kernel}/bzImage $efidir/vmlinuz-linux
     '';
 
   # Compress the EFI directory and wrap it into a mnt/boot directory
