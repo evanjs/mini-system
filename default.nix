@@ -82,14 +82,19 @@ let
               inherit (ksuper) version;
             }; {
               CFG80211 = yes;
+              EFIVAR_FS = yes;
               PACKET = yes;
               RFKILL = yes;
-              USB = yes;
+              UEVENT_HELPER = yes;
+              USB_ACM = yes;
               USB_COMMON = yes;
               USB_EHCI_HCD = yes;
+              USB_SERIAL = yes;
+              USB_SERIAL_FTDI_SIO = yes;
               USB_XHCI_HCD = yes;
-              UEVENT_HELPER = yes;
-              EFIVAR_FS = yes;
+              USB_HID = yes;
+              USB = yes;
+
             };
             extraConfig = ''
               UEVENT_HELPER_PATH /proc/sys/kernel/hotplug
