@@ -86,6 +86,9 @@ let
               PACKET = yes;
               RFKILL = yes;
               UEVENT_HELPER = yes;
+
+              # Input and other USB devices
+              HID_GENERIC = yes;
               USB_ACM = yes;
               USB_COMMON = yes;
               USB_EHCI_HCD = yes;
