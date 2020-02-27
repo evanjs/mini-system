@@ -173,7 +173,7 @@ let
     };
     initrd-tools = self.buildEnv {
       name = "initrd-tools";
-      paths = [ self.realtime self.busybox pkgs.usbutils pkgs.wirelesstools pkgs.hostapd pkgs.iw pkgs.efibootmgr pkgs.efitools pkgs.efivar ];
+      paths = with pkgs; [ self.realtime self.busybox hostapd utillinux pciutils ];
     };
     initrd = self.makeInitrd {
       compressor = "xz --check=crc32";
