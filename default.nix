@@ -87,6 +87,12 @@ let
               RFKILL = yes;
               UEVENT_HELPER = yes;
 
+              # SCSI/SATA Support
+              SATA_AHCI = yes;
+              ATA = yes;
+              SCSI_MOD = yes;
+              BLK_DEV_SD = yes;
+
               # Input and other USB devices
               HID_GENERIC = yes;
               USB_ACM = yes;
