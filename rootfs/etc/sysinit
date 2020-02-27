@@ -9,6 +9,9 @@
 
 dmesg -n 1
 
+# redirect everything from this script to /dev/console
+exec > /dev/console
+
 #mount -t devtmpfs none /dev
 mount -t proc none /proc
 mkdir /tmp
@@ -56,6 +59,6 @@ while [ ! -e /dev/ttyS0 ]; do
   sleep 1
 done
 
-echo serial_number=$serial_number > /dev/console
-echo country_code=$country_code > /dev/console
-strings "$(echo `readlink /bin/SensorTester` | cut -d / -f -4)/libexec/SensorTester" |  grep "\"version\":\"" > /dev/console
+echo serial_number=$serial_number
+echo country_code=$country_code
+strings "$(echo `readlink /bin/SensorTester` | cut -d / -f -4)/libexec/SensorTester" |  grep "\"version\":\""
