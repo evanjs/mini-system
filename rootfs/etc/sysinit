@@ -52,10 +52,12 @@ sed -i "/ssid=Sensor Tester SERIAL_NUMBER/c\ssid=Sensor Tester $serial_number" /
 # this is moved to tmp so a read-only root can be used
 # a supervise folder with stuff will be created under each service
 
+# can we build this into the kernel?
+# currently it's not in the nixpkgs tree
 modprobe 8188eu
 
 # wait for the usbsi device
-while [ ! -e /dev/ttyS0 ]; do
+while [ ! -e /dev/ttyACM0 ]; do
   sleep 1
 done
 
