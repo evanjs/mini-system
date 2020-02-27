@@ -77,15 +77,21 @@ let
       lib.const (
         ksuper: {
           kernel = ksuper.kernel.override {
+            extraStructuredConfig = with import (pkgs.path + "/lib/kernel.nix") {
+            }; {
+              # Needed for FAT support
+              NLS_ISO8859_1 = yes;
+            };
             structuredExtraConfig = with import (pkgs.path + "/lib/kernel.nix") {
               inherit lib;
               inherit (ksuper) version;
             }; {
-              CFG80211 = yes;
-              EFIVAR_FS = yes;
-              PACKET = yes;
-              RFKILL = yes;
-              UEVENT_HELPER = yes;
+              # Filesystem support
+
+              # FAT Support
+              NLS_CODEPAGE_437 = yes;
+              FAT_FS = yes;
+              VFAT_FS = yes;
 
               # SCSI/SATA Support
               SATA_AHCI = yes;
@@ -104,8 +110,20 @@ let
               USB_HID = yes;
               USB = yes;
 
+              # We don't need audio output
+              SOUND = no;
+
+              # Networking
+              CFG80211 = yes;
+              PACKET = yes;
+              RFKILL = yes;
+
+              # Low-level system requirements
+              EFIVAR_FS = yes;
+              UEVENT_HELPER = yes;
             };
             extraConfig = ''
+              # Enable hot-plugging
               UEVENT_HELPER_PATH /proc/sys/kernel/hotplug
             '';
           };
