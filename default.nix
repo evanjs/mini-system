@@ -77,16 +77,14 @@ let
       lib.const (
         ksuper: {
           kernel = ksuper.kernel.override {
-            extraStructuredConfig = with import (pkgs.path + "/lib/kernel.nix") {
-            }; {
-              # Needed for FAT support
-              NLS_ISO8859_1 = yes;
-            };
             structuredExtraConfig = with import (pkgs.path + "/lib/kernel.nix") {
               inherit lib;
               inherit (ksuper) version;
             }; {
               # Filesystem support
+
+              # Needed for FAT support
+              NLS_ISO8859_1 = yes;
 
               # FAT Support
               NLS_CODEPAGE_437 = yes;
