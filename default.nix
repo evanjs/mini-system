@@ -205,6 +205,10 @@ let
           object = "${pkgs.wireless-regdb}/lib/firmware/regulatory.db.p7s";
           symlink = "/lib/firmware/regulatory.db.p7s";
         }
+        {
+          object = "${pkgs.realtime}/development/webpage";
+          symlink = "/www-root";
+        }
       ];
     };
     scripts =
