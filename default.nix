@@ -160,6 +160,7 @@ let
         withEthercat = false;
         rev = realtimeRevision;
         inherit hardwareVersion softwareVersion;
+        inherit (pkgs.rjg.core-infrastructure) extract-update_2;
       }
     );
     script = pkgs.writeTextFile {
