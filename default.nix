@@ -51,7 +51,7 @@ let
       tar -hcaf $out/update.tar.xz mnt/boot
     '';
 
-  deploySensorTesterImage = pkgs.rjg.core-infrastructure.deploy-sensor-tester-image;
+  deploySensorTesterImage = pkgs.callPackage ./overlay/pkgs/core_infrastructure/deploy_sensor_tester_image { inherit (pkgs.rjg.core-infrastructure) extract-update_2; };
 
   sensorTesterUPDFile =
     assert lib.asserts.assertMsg (updateKey != null) "An update key must be provided when creating a UPD file";
