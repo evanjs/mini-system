@@ -172,7 +172,7 @@ let
     };
     initrd-tools = self.buildEnv {
       name = "initrd-tools";
-      paths = with pkgs; [ self.realtime self.busybox hostapd utillinux pciutils ];
+      paths = with pkgs; [ self.realtime self.busybox hostapd ];
     };
     initrd = self.makeInitrd {
       compressor = "xz --check=crc32";
