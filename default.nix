@@ -215,13 +215,18 @@ let
       let
         consoleConfig = "console=ttyS0";
 
-        usb3HubConfig = "-device qemu-xhci,id=xhci -device usb-host,bus=xhci.0";
-        usb2HubConfig = "-device usb-ehci,id=ehci -device usb-host,bus=ehci.0";
+        usb2DeviceConfig = "-device usb-host,bus=ehci.0";
+        usb2HubConfig = "-device usb-ehci,id=ehci";
+       
+        usb3DeviceConfig = "-device usb-host,bus=xhci.0";
+        usb3HubConfig = "-device qemu-xhci,id=xhci";
 
         # TP-Link TL-WN722N v2
-        bigAdapterConfig = ",vendorid=0x2357,productid=0x010c";
+        bigAdapterConfig = "${usb3DeviceConfig},vendorid=0x2357,productid=0x010c";
         # Realtek Semiconductor Corp. RTL8188EUS 802.11n Wireless Network Adapter
-        smallAdapterConfig = ",vendorid=0x0bda,productid=0x8179";
+        smallAdapterConfig = "${usb3DeviceConfig},vendorid=0x0bda,productid=0x8179";
+
+        serialInterfaceConfig = "${usb3DeviceConfig},vendorid=0x03eb,productid=0x2404";
 
         grubDebugConfig = "-stdio serial -s -S";
 
@@ -229,6 +234,8 @@ let
         highMemoryConfig = "-m 4096";
 
         efiConfig = "-enable-kvm -bios ${OVMFFile}";
+
+        qemuEfiConfig = "-drive format=raw,file=fat:rw:${updEFIDir} -net none -drive if=pflash,format=raw,readonly,file=${OVMFFile}";
 
         baseConfig = "${self.qemu}/bin/qemu-system-x86_64 -kernel ${kernel}/bzImage -initrd ${self.initrd}/initrd ${usb3HubConfig}";
         baseConfigInitrdInKernel = "${self.qemu}/bin/qemu-system-x86_64 -kernel ${kernel2}/bzImage ${usb3HubConfig}";
@@ -244,15 +251,15 @@ let
           '';
           test-script-big-adapter-embedded-initrd = pkgs.writeShellScript "test-script-big-embedded-initrd" ''
             #!${self.stdenv.shell}
-            ${baseConfigInitrdInKernel}${bigAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
+            ${baseConfigInitrdInKernel} ${bigAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
           '';
           test-script-small-adapter-embedded-initrd = pkgs.writeShellScript "test-script-small-embedded-initrd" ''
             #!${self.stdenv.shell}
-            ${baseConfigInitrdInKernel}${smallAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
+            ${baseConfigInitrdInKernel} ${smallAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
           '';
           test-script-big-adapter-no-efi = pkgs.writeShellScript "test-script-big-no-efi" ''
             #!${self.stdenv.shell}
-            ${baseConfig}${bigAdapterConfig} -nographic ${highMemoryConfig} -append '${consoleConfig}'
+            ${baseConfig }${bigAdapterConfig} -nographic ${highMemoryConfig} -append '${consoleConfig}'
           '';
           debug-script = pkgs.writeShellScript "debug-script" ''
             #!${self.stdenv.shell}
@@ -260,7 +267,11 @@ let
           '';
           startup-script = pkgs.writeShellScript "startup-script" ''
             #!${self.stdenv.shell}
-            ${self.qemu}/bin/qemu-system-x86_64 ${usb3HubConfig}${smallAdapterConfig} -nographic ${highMemoryConfig} -drive format=raw,file=fat:rw:${updEFIDir} -net none -drive if=pflash,format=raw,readonly,file=${OVMFFile}
+            ${self.qemu}/bin/qemu-system-x86_64 ${usb3HubConfig} ${smallAdapterConfig} -nographic ${highMemoryConfig} ${qemuEfiConfig}
+          '';
+          physical-hardware-startup-script = pkgs.writeShellScript "physical-hardware-script" ''
+            #!${self.stdenv.shell}
+            ${self.qemu}/bin/qemu-system-x86_64 -nographic ${usb3HubConfig} ${smallAdapterConfig} ${serialInterfaceConfig} ${highMemoryConfig} ${qemuEfiConfig}
           '';
         };
   };
