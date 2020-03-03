@@ -51,7 +51,7 @@ let
       tar -hcaf $out/update.tar.xz mnt/boot
     '';
 
-  deploySensorTesterImage = pkgs.callPackage ./overlay/pkgs/core_infrastructure/deploy_sensor_tester_image { inherit (pkgs.rjg.core-infrastructure) extract-update_2; };
+  deploySensorTesterImage = pkgs.callPackage ./overlay/pkgs/core_infrastructure/deploy_sensor_tester_image { };
 
   sensorTesterUPDFile =
     assert lib.asserts.assertMsg (updateKey != null) "An update key must be provided when creating a UPD file";
@@ -160,7 +160,6 @@ let
         withEthercat = false;
         rev = realtimeRevision;
         inherit hardwareVersion softwareVersion;
-        inherit (pkgs.rjg.core-infrastructure) extract-update_2;
       }
     );
     script = pkgs.writeTextFile {
@@ -172,7 +171,7 @@ let
     };
     initrd-tools = self.buildEnv {
       name = "initrd-tools";
-      paths = with pkgs; [ self.realtime self.busybox hostapd ];
+      paths = with pkgs; [ self.realtime self.busybox hostapd rjg.core-infrastructure.extract-update_2 ];
     };
     initrd = self.makeInitrd {
       compressor = "xz --check=crc32";
