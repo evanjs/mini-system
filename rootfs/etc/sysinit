@@ -66,10 +66,12 @@ sed -i "/ssid=Sensor Tester SERIAL_NUMBER/c\ssid=Sensor Tester $serial_number" /
 # currently it's not in the nixpkgs tree
 modprobe 8188eu
 
+echo "Waiting for the serial interface to appear ..."
 # wait for the usbsi device
 while [ ! -e /dev/ttyACM0 ]; do
   sleep 1
 done
+echo "Serial interface detected"
 
 ln -s /dev/ttyACM0 /dev/serial/by-id/usb-RJG_Inc._Lynx_USBSI_17LS200001-if00
 
