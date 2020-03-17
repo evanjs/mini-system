@@ -1,11 +1,11 @@
 { kernelOverride ? null
 , updateKey ? null
 , cpioOverride ? null
-, hardwareVersion ? "0.0.0"
-, softwareVersion ? "0.0.0"
+, hardwareVersion ? "1.0.0"
+, softwareVersion ? "1.0.0"
 , realtimeRevision ? "unknown"
 , ...
-}:
+} @args:
 let
   sources = import ./nix/sources.nix;
   busybox = pkgs.pkgsStatic.busybox.override {
@@ -13,21 +13,25 @@ let
   };
   nixos = (
     import (sources.nixpkgs + "/nixos") {
-      configuration = ./nixos.nix;
+    configuration = ./nixos.nix;
     }
-  );
-
-  OVMFFile = "${pkgs.OVMF.fd}/FV/OVMF.fd";
-  kernelPackages = pkgs.customLinuxPackages;
-  kernel2 = pkgs.customWithInitrd.kernel;
-  startupScript = pkgs.writeTextFile {
+    );
+    glibc28GCC = with pkgs; wrapCCWith {
+    cc = gcc;
+    bintools = binutils;
+    libc = stdenv.cc.libc;
+    };
+    OVMFFile = "${pkgs.OVMF.fd}/FV/OVMF.fd";
+    kernelPackages = pkgs.customLinuxPackages;
+    kernel2 = pkgs.customWithInitrd.kernel;
+    startupScript = pkgs.writeTextFile {
     name = "startup.nsh";
     text = ''
-      fs0:
-      \EFI\BOOT\bzImage.efi ro initrd=\EFI\BOOT\initrd
+    fs0:
+    \EFI\BOOT\bzImage.efi ro initrd=\EFI\BOOT\initrd
     '';
     executable = true;
-  };
+    };
 
   # create a directory with all the contents required to boot into a minimal system
   # kernel, initrd and startup script
@@ -40,6 +44,12 @@ let
       ln -s ${kernel}/bzImage $efidir/bzImage.efi
     '';
 
+    legacyRealtimeUpgradeTarball =
+      pkgs.runCommand "make-legacy-realtime-tarball" {} ''
+        mkdir $out
+        tar -hcaf $out/software_upgrade.tar.xz -C ${pkgs.realtime-arm} . --xform s:'.'::
+      '';
+
   # Compress the EFI directory and wrap it into a mnt/boot directory
   compressedEFIDir =
     pkgs.runCommand "compress-efi-dir" {} ''
@@ -51,36 +61,125 @@ let
       tar -hcaf $out/update.tar.xz mnt/boot
     '';
 
-  deploySensorTesterImage = pkgs.callPackage ./overlay/pkgs/core_infrastructure/deploy_sensor_tester_image { };
+    deploySensorTesterImage = pkgs.callPackage ./overlay/pkgs/core_infrastructure/deploy_sensor_tester_image { };
 
-  sensorTesterUPDFile =
-    assert lib.asserts.assertMsg (updateKey != null) "An update key must be provided when creating a UPD file";
-    let
-      updateFile = updateKey;
-    in
+    sensorTesterUPDFile =
+      assert lib.asserts.assertMsg (updateKey != null) "An update key must be provided when creating a UPD file";
+      let
+        updateFile = updateKey;
+      in
       pkgs.runCommand "make-upd" {} ''
         mkdir $out
         ${pkgs.rjg.core-infrastructure.pack-update_2}/bin/pack_update_2 ${deploySensorTesterImage}/meta_data.zip ${compressedEFIDir}/update.tar.xz $out/stester.upd ${updateFile}
       '';
 
-  pkgs = (import sources.nixpkgs { overlays = [ overlay rjg-overlay ]; });
-  kernelVersion = kernel.modDirVersion;
-  rjg-overlay = (import ./overlay/overlay.nix);
+      nixpkgsFn = import sources.nixpkgs;
+      nixpkgsFn-16_09 = import sources.nixpkgs-16_09;
+      pkgs = nixpkgsFn {
+        overlays = [ overlay rjg-overlay ];
+      };
+      pkgs16_09 = nixpkgsFn-16_09 rec {
+        config.packageOverrides = pkgs: {
+          coreutils = pkgs.coreutils.overrideDerivation(od: {
+            postPatch = od.postPatch
+            + ''
+              sed '2i echo Skipping misc seq-precision test && exit 0' -i ./tests/misc/seq-precision.sh
+              sed '2i echo Skipping install install-C test && exit 0' -i ./tests/install/install-C.sh
+              sed '2i echo Skipping chmod setgid test && exit 0' -i ./tests/chmod/setgid.sh
+            '';
+          });
+        };
+        crossSystem = pkgs.platforms.armv7l-hf-multiplatform //
+        rec {
+          libc = "glibc";
+          #config = "armv7l-hf-linux";
+          config = "armv7l-unknown-linux-gnueabihf";
+          float = pkgs16_09.platforms.armv7l-hf-multiplatform.gcc.float;
+          platform = pkgs16_09.platforms.armv7l-hf-multiplatform;
+          arch = "armv7l";
+          withTLS = true;
+        };
+        #overlays = [ overlay16 ];
+      };
 
-  rtl8188eu = pkgs.callPackage ./overlay/pkgs/os-specific/linux/rtl8188eu { inherit kernel; };
-  kernel = kernelPackages.kernel;
+      kernelVersion = kernel.modDirVersion;
+      rjg-overlay = (import ./overlay/overlay.nix);
 
-  lib = pkgs.lib;
-  x86_64 = pkgs;
-  overlay = self: super: {
-    customLinuxPackages = pkgs.linuxPackages_4_4.extend (
-      lib.const (
-        ksuper: {
-          kernel = ksuper.kernel.override {
-            structuredExtraConfig = with import (pkgs.path + "/lib/kernel.nix") {
-              inherit lib;
-              inherit (ksuper) version;
-            }; {
+      rtl8188eu = pkgs.callPackage ./overlay/pkgs/os-specific/linux/rtl8188eu { inherit kernel; };
+      kernel = kernelPackages.kernel;
+
+      lib = pkgs.lib;
+      x86_64 = pkgs;
+      overlay = self: super: {
+        armGCCStdenv = self.pkgsCross.armv7l-hf-multiplatform.stdenv.override rec {
+          allowedRequisites = null;
+          #crossConfig = pkgs.pkgsCross.armv7l-hf-multiplatform;
+          #cc = pkgs16_09.gcc-arm-embedded-5;
+          cc = pkgs16_09.gcc;
+          #cc = self.stdenv.cc.override rec {
+            #libc = pkgs16_09.glibc;
+            #bintools = super.wrapBintoolsWith rec {
+              #inherit libc;
+              #bintools = pkgs16_09.binutils;
+            #};
+          #};
+        };
+        #};
+        #armGcc =
+        #let
+          #libc = self.glibc16_09;
+          #bintools =
+        #in
+          #self.wrapCCWith rec {
+          #cc = pkgs16_09.pkgs.stdenv.cc.override {
+            #inherit libc bintools;
+          #};
+        #};
+        armGCC54Stdenv = pkgs.pkgsCross.armv7l-hf-multiplatform.overrideCC pkgs.pkgsCross.armv7l-hf-multiplatform.stdenv pkgs16_09.gcc;
+        glibc16_09 = pkgs16_09.glibc;
+        #binutils16_09 = super.pkgsCross.armv7l-hf-multiplatform.binutils.override {
+          #libc = self.glibc16_09;
+        #};
+        #armGCC1609Stdenv = self.pkgsCross.armv7l-hf-multiplatform.gcc54Stdenv;
+
+        #armGCC49Stdenv_glibc24 =
+          #let
+            #libc = self.glibc16_09;
+            #bintools = self.binutils16_09;
+            ##cc = pkgs.pkgsCross.armv7l-hf-multiplatform.stdenv.cc.override {
+              ##inherit libc bintools;
+            ##};
+          #in
+          #pkgs.pkgsCross.armv7l-hf-multiplatform.armGCC54Stdenv.override {
+          ##pkgs.pkgsCross.armv7l-hf-multiplatform.stdenv.override {
+          ##self.armGCC54Stdenv.override {
+          ##pkgs16_09.stdenv.override {
+            ##inherit libc;
+            ##cc = pkgs16_09.gcc;
+            ##cc = self.armGCC1609Stdenv.cc;
+            ##cc = self.armGCC1609Stdenv.cc.override {
+            ##cc = pkgs16_09.gcc;
+            ##cc = self.armGCC54Stdenv.cc.override {
+              ##inherit libc bintools;
+              ##inherit libc;
+            ##};
+            ##inherit cc;
+            #cc = pkgs.pkgsCross.armv7l-hf-multiplatform.armGCC54Stdenv.cc.override {
+            ##cc = self.armGCC54Stdenv.cc.override {
+              #cc = pkgs16_09.gcc;
+              #inherit libc bintools;
+              ##glibc = libc;
+              ##inherit (o) cc;
+            #};
+          #};
+          customLinuxPackages = pkgs.linuxPackages_4_4.extend (
+            lib.const (
+              ksuper: {
+                kernel = ksuper.kernel.override {
+                  structuredExtraConfig = with import (pkgs.path + "/lib/kernel.nix") {
+                    inherit lib;
+                    inherit (ksuper) version;
+                  }; {
               # Filesystem support
 
               # Needed for FAT support
@@ -126,99 +225,119 @@ let
             '';
           };
         }
-      )
-    );
-    customWithInitrd = self.customLinuxPackages.extend (
-      lib.const (
-        ksuper: {
-          kernel = (
-            ksuper.kernel.override {
-              extraConfig =
-                let
-                  initrd-cpio =
-                    if cpioOverride != null then "${cpioOverride}" else
-                      pkgs.runCommand "initrd-link" {} ''
-                        mkdir $out
-                        ln -s ${self.initrd}/initrd $out/initrd.cpio
-                      '';
-                in
-                  ''
-                    INITRAMFS_SOURCE ${initrd-cpio}/initrd.cpio
-                  '';
-            }
-          );
+        )
+        );
+        customWithInitrd = self.customLinuxPackages.extend (
+          lib.const (
+            ksuper: {
+              kernel = (
+                ksuper.kernel.override {
+                  extraConfig =
+                    let
+                      initrd-cpio =
+                        if cpioOverride != null then "${cpioOverride}" else
+                        pkgs.runCommand "initrd-link" {} ''
+                          mkdir $out
+                          ln -s ${self.initrd}/initrd $out/initrd.cpio
+                        '';
+                    in
+                    ''
+                      INITRAMFS_SOURCE ${initrd-cpio}/initrd.cpio
+                    '';
+                  }
+                  );
 
-        }
-      )
-    );
+                }
+                )
+                );
 
     # realtime with sensor tester functionality enabled
-    realtime = (
-      pkgs.pkgsMusl.callPackage ./realtime {
-        deploy = false;
+    realtime-arm = (
+      pkgs.pkgsCross.armv7l-hf-multiplatform.callPackage ./realtime {
+        deploy = true;
         withSensorTester = true;
         withEthercat = false;
         rev = realtimeRevision;
         inherit hardwareVersion softwareVersion;
-      }
-    );
-    script = pkgs.writeTextFile {
-      name = "init";
-      text = ''
-        #!${self.busybox}/bin/busybox
-      '';
-      executable = true;
-    };
-    initrd-tools = self.buildEnv {
-      name = "initrd-tools";
-      paths = with pkgs; [ self.realtime self.busybox hostapd rjg.core-infrastructure.extract-update_2 ];
-    };
-    initrd = self.makeInitrd {
-      compressor = "xz --check=crc32";
-      contents = [
-        {
-          object = "${self.initrd-tools}/bin";
-          symlink = "/bin";
-        }
-        {
-          object = self.script;
-          symlink = "/init";
-        }
-        {
-          object = ./rootfs/etc;
-          symlink = "/etc";
-        }
-        {
-          object = "${rtl8188eu}/lib/modules";
-          symlink = "/lib/modules";
-        }
-        {
-          object = "${pkgs.rtlwifi_new-firmware}/lib/firmware";
-          symlink = "/lib/firmware/rtlwifi";
-        }
-        {
-          object = "${pkgs.wireless-regdb}/lib/firmware/regulatory.db";
-          symlink = "/lib/firmware/regulatory.db";
-        }
-        {
-          object = "${pkgs.wireless-regdb}/lib/firmware/regulatory.db.p7s";
-          symlink = "/lib/firmware/regulatory.db.p7s";
-        }
-        {
-          object = "${pkgs.realtime}/development/webpage";
-          symlink = "/www-root";
-        }
-      ];
-    };
-    scripts =
-      let
-        consoleConfig = "console=ttyS0";
+        #stdenv = pkgs.pkgsCross.armv7l-hf-multiplatform.stdenv;
+        #stdenv = pkgs.pkgsCross.armv7l-hf-multiplatform.gcc49Stdenv;
+        #stdenv = pkgs.armGCC49Stdenv_glibc24;
+        #stdenv = pkgs.armGCC1609Stdenv;
 
-        usb2DeviceConfig = "-device usb-host,bus=ehci.0";
-        usb2HubConfig = "-device usb-ehci,id=ehci";
-       
-        usb3DeviceConfig = "-device usb-host,bus=xhci.0";
-        usb3HubConfig = "-device qemu-xhci,id=xhci";
+        #stdenv = pkgs16_09.stdenv;
+        #stdenv = pkgs.armGCC54Stdenv;
+        stdenv = pkgs.armGCCStdenv;
+        #stdenv = pkgs.armGCC49Stdenv_glibc24;
+        #stdenv = pkgs.armGCC54Stdenv;
+        useLegacyEmbeddedSystem = true;
+      }
+      );
+      realtime = (
+        pkgs.pkgsMusl.callPackage ./realtime {
+          deploy = false;
+          withSensorTester = true;
+          withEthercat = false;
+          rev = realtimeRevision;
+          inherit hardwareVersion softwareVersion;
+        }
+        );
+        script = pkgs.writeTextFile {
+          name = "init";
+          text = ''
+        #!${self.busybox}/bin/busybox
+          '';
+          executable = true;
+        };
+        initrd-tools = self.buildEnv {
+          name = "initrd-tools";
+          paths = with pkgs; [ self.realtime self.busybox hostapd rjg.core-infrastructure.extract-update_2 cgdb ];
+        };
+        initrd = self.makeInitrd {
+          compressor = "xz --check=crc32";
+          contents = [
+            {
+              object = "${self.initrd-tools}/bin";
+              symlink = "/bin";
+            }
+            {
+              object = self.script;
+              symlink = "/init";
+            }
+            {
+              object = ./rootfs/etc;
+              symlink = "/etc";
+            }
+            {
+              object = "${rtl8188eu}/lib/modules";
+              symlink = "/lib/modules";
+            }
+            {
+              object = "${pkgs.rtlwifi_new-firmware}/lib/firmware";
+              symlink = "/lib/firmware/rtlwifi";
+            }
+            {
+              object = "${pkgs.wireless-regdb}/lib/firmware/regulatory.db";
+              symlink = "/lib/firmware/regulatory.db";
+            }
+            {
+              object = "${pkgs.wireless-regdb}/lib/firmware/regulatory.db.p7s";
+              symlink = "/lib/firmware/regulatory.db.p7s";
+            }
+            {
+              object = "${pkgs.realtime}/development/webpage";
+              symlink = "/www-root";
+            }
+          ];
+        };
+        scripts =
+          let
+            consoleConfig = "console=ttyS0";
+
+            usb2DeviceConfig = "-device usb-host,bus=ehci.0";
+            usb2HubConfig = "-device usb-ehci,id=ehci";
+
+            usb3DeviceConfig = "-device usb-host,bus=xhci.0";
+            usb3HubConfig = "-device qemu-xhci,id=xhci";
 
         # TP-Link TL-WN722N v2
         bigAdapterConfig = "${usb3DeviceConfig},vendorid=0x2357,productid=0x010c";
@@ -238,51 +357,51 @@ let
 
         baseConfig = "${self.qemu}/bin/qemu-system-x86_64 -kernel ${kernel}/bzImage -initrd ${self.initrd}/initrd ${usb3HubConfig}";
         baseConfigInitrdInKernel = "${self.qemu}/bin/qemu-system-x86_64 -kernel ${kernel2}/bzImage ${usb3HubConfig}";
-      in
-        {
-          test-script-small-adapter = pkgs.writeShellScript "test-script-small" ''
+          in
+          {
+            test-script-small-adapter = pkgs.writeShellScript "test-script-small" ''
             #!${self.stdenv.shell}
-            ${baseConfig}${smallAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
-          '';
-          test-script-big-adapter = pkgs.writeShellScript "test-script-big" ''
+              ${baseConfig}${smallAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
+            '';
+            test-script-big-adapter = pkgs.writeShellScript "test-script-big" ''
             #!${self.stdenv.shell}
-            ${baseConfig}${bigAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
-          '';
-          test-script-big-adapter-embedded-initrd = pkgs.writeShellScript "test-script-big-embedded-initrd" ''
+              ${baseConfig}${bigAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
+            '';
+            test-script-big-adapter-embedded-initrd = pkgs.writeShellScript "test-script-big-embedded-initrd" ''
             #!${self.stdenv.shell}
-            ${baseConfigInitrdInKernel} ${bigAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
-          '';
-          test-script-small-adapter-embedded-initrd = pkgs.writeShellScript "test-script-small-embedded-initrd" ''
+              ${baseConfigInitrdInKernel} ${bigAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
+            '';
+            test-script-small-adapter-embedded-initrd = pkgs.writeShellScript "test-script-small-embedded-initrd" ''
             #!${self.stdenv.shell}
-            ${baseConfigInitrdInKernel} ${smallAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
-          '';
-          test-script-big-adapter-no-efi = pkgs.writeShellScript "test-script-big-no-efi" ''
+              ${baseConfigInitrdInKernel} ${smallAdapterConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig}'
+            '';
+            test-script-big-adapter-no-efi = pkgs.writeShellScript "test-script-big-no-efi" ''
             #!${self.stdenv.shell}
-            ${baseConfig }${bigAdapterConfig} -nographic ${highMemoryConfig} -append '${consoleConfig}'
-          '';
-          debug-script = pkgs.writeShellScript "debug-script" ''
+              ${baseConfig }${bigAdapterConfig} -nographic ${highMemoryConfig} -append '${consoleConfig}'
+            '';
+            debug-script = pkgs.writeShellScript "debug-script" ''
             #!${self.stdenv.shell}
-            ${baseConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig} ${grubDebugConfig}'
-          '';
-          startup-script = pkgs.writeShellScript "startup-script" ''
+              ${baseConfig} -nographic ${highMemoryConfig} ${efiConfig} -append '${consoleConfig} ${grubDebugConfig}'
+            '';
+            startup-script = pkgs.writeShellScript "startup-script" ''
             #!${self.stdenv.shell}
-            ${self.qemu}/bin/qemu-system-x86_64 ${usb3HubConfig} ${smallAdapterConfig} -nographic ${highMemoryConfig} ${qemuEfiConfig}
-          '';
-          physical-hardware-startup-script = pkgs.writeShellScript "physical-hardware-script" ''
+              ${self.qemu}/bin/qemu-system-x86_64 ${usb3HubConfig} ${smallAdapterConfig} -nographic ${highMemoryConfig} ${qemuEfiConfig}
+            '';
+            physical-hardware-startup-script = pkgs.writeShellScript "physical-hardware-script" ''
             #!${self.stdenv.shell}
-            ${self.qemu}/bin/qemu-system-x86_64 -nographic ${usb3HubConfig} ${smallAdapterConfig} ${serialInterfaceConfig} ${highMemoryConfig} ${qemuEfiConfig}
-          '';
+              ${self.qemu}/bin/qemu-system-x86_64 ${usb3HubConfig} ${smallAdapterConfig} ${serialInterfaceConfig} ${highMemoryConfig} ${qemuEfiConfig}
+            '';
+          };
         };
-  };
 in
-pkgs.lib.fix (
-  self: {
-    x86_64 = { inherit (x86_64) scripts; };
-    inherit (pkgs) realtime;
-    inherit kernel kernel2;
-    inherit sensorTesterUPDFile updEFIDir startupScript compressedEFIDir;
+  pkgs.lib.fix (
+    self: {
+      x86_64 = { inherit (x86_64) scripts; };
+      inherit (pkgs) realtime-arm armGCCStdenv;
+      inherit kernel kernel2;
+      inherit sensorTesterUPDFile updEFIDir startupScript compressedEFIDir legacyRealtimeUpgradeTarball;
 
-    kernelShell = kernelPackages.kernel.overrideDerivation
+      kernelShell = kernelPackages.kernel.overrideDerivation
       (
         drv: {
           nativeBuildInputs = drv.nativeBuildInputs
@@ -293,15 +412,14 @@ pkgs.lib.fix (
             echo to build: 'time make $makeFlags zImage -j8'
           '';
         }
-      );
-    kernelShellLight = pkgs.writeShellScript "kshell" ''
-      nix-shell -E 'with import <nixpkgs> {}; linux_4_4.overrideAttrs (o: {nativeBuildInputs=o.nativeBuildInputs ++ [ pkgconfig ncurses ];})'
-    '';
-    inherit (pkgs) initrd;
-    inherit pkgs;
-    nixos = {
-      inherit (nixos) system;
-      inherit (nixos.config.system.build) initialRamdisk;
-    };
-  }
-)
+        );
+        kernelShellLight = pkgs.writeShellScript "kshell" ''
+          nix-shell -E 'with import <nixpkgs> {}; linux_4_4.overrideAttrs (o: {nativeBuildInputs=o.nativeBuildInputs ++ [ pkgconfig ncurses ];})'
+        '';
+        inherit pkgs pkgs16_09;
+        nixos = {
+          inherit (nixos) system;
+          inherit (nixos.config.system.build) initialRamdisk;
+        };
+      }
+      )
